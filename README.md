@@ -26,7 +26,7 @@ Save Function<br />
 | Programming Environment | Value |
 | :--- | :--- |
 | OpenCV Version | 4.10 |
-| Visual Studio | 2022 Community Edition |
+| IDE | Visual Studio 2022 Community Edition |
 | Project Template | MFC App |
 | Programming Language | C++ |
 
