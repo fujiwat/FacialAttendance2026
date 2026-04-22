@@ -1,6 +1,6 @@
 # FacialAttendance2026
 <img width="1004" height="800" alt="image" src="https://github.com/user-attachments/assets/452de1e7-6f53-4fb9-b025-a279f9e1d43d" />
-Progress:  Apr 18.<br />
+Progress:  Apr 22.<br />
 OK:  Face Detection by HaarCascard<br />
 OK:  Face Detection by YuNet<br />
 OK:  Find center face<br />
