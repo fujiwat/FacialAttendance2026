@@ -54,3 +54,4 @@ Save Function<br />
 
 ## Log
 04.19.  Mirror Mode, it is better than the normal mode.
+04.22.  New version - remake the project with the new template "C++ MFC App"
