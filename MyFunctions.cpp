@@ -1,0 +1,143 @@
+﻿// 標準ライブラリ
+#include "pch.h"
+#include <string>
+#include <vector>
+
+// Windows 固有の設定（windows.h の前に置く）
+#define WIN32_LEAN_AND_MEAN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#include <windows.h>
+#include <sal.h> // _In_, _Out_ 等のアノテーション
+
+#include "OpenCV_without_warning.h"
+#include "FaceDetector.h"
+#include "MyFunctions.h"
+#include "MyConst.h"
+
+// -----------------------------
+// Helpers
+// -----------------------------
+
+// narrow formatted string (vsnprintf)
+static std::string VFormatA(const char* fmt, va_list args)
+{
+    va_list tmp;
+    va_copy(tmp, args);
+    int len = vsnprintf(nullptr, 0, fmt, tmp);
+    va_end(tmp);
+    if (len < 0) return std::string();
+    std::vector<char> buf(static_cast<size_t>(len) + 1);
+    vsnprintf(buf.data(), buf.size(), fmt, args);
+    return std::string(buf.data());
+}
+
+// wide formatted string (vswprintf_s)
+static std::wstring VFormatW(const wchar_t* fmt, va_list args)
+{
+    va_list tmp;
+    va_copy(tmp, args);
+    int len = _vscwprintf(fmt, tmp); // required length (without terminating NUL)
+    va_end(tmp);
+
+    if (len < 0) return std::wstring();
+    std::vector<wchar_t> buf(static_cast<size_t>(len) + 1);
+    vswprintf_s(buf.data(), buf.size(), fmt, args);
+    return std::wstring(buf.data());
+}
+
+// -----------------------------
+// Public functions
+// -----------------------------
+
+// MyMessageBoxW: wide-format, wide-args
+void MyMessageBoxW(HWND parent, UINT type, const std::wstring& title, const wchar_t* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    std::wstring msg = VFormatW(format, args);
+    va_end(args);
+
+    MessageBoxW(parent, msg.c_str(), title.c_str(), type);
+}
+
+// MyMessageBoxA: narrow title + narrow printf-style format + variadic args
+// Internally formats to a narrow string, converts to UTF-16 (CP_UTF8 by default) and calls MessageBoxW.
+void MyMessageBoxA(HWND parent, UINT type, const std::string& titleA, const char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    std::string msgA = VFormatA(format, args);
+    va_end(args);
+
+    // Convert formatted narrow string and title to wide (UTF-8 assumed).
+    std::wstring msgW = ToWString(msgA);
+    std::wstring titleW = ToWString(titleA);
+
+    MessageBoxW(parent, msgW.c_str(), titleW.c_str(), type);
+}
+
+// ShowErrorA: simple single-message helper (UTF-8 std::string)
+
+void ShowErrorA(const std::string& messageUtf8)
+{
+    std::wstring wmsg = ToWString(messageUtf8);
+	std::wstring wtitle = ToWString(APP_NAME_LONG);
+    MessageBoxW(NULL, wmsg.c_str(), wtitle.c_str(), MB_OK | MB_ICONERROR);
+}
+
+// -----------------------------
+// FpsCounter implementation
+// -----------------------------
+
+FpsCounter::FpsCounter() noexcept
+    : prev_tick_(static_cast<int64_t>(cv::getTickCount()))
+    , last_fps_(0.0)
+{
+}
+
+void FpsCounter::reset() noexcept
+{
+    prev_tick_ = static_cast<int64_t>(cv::getTickCount());
+    last_fps_ = 0.0;
+}
+
+double FpsCounter::tick() noexcept
+{
+    int64_t current = static_cast<int64_t>(cv::getTickCount());
+    int64_t delta = current - prev_tick_;
+    // protect against zero / negative delta (shouldn't normally happen)
+    if (delta <= 0) {
+        // update prev_tick_ anyway to avoid repeated zero delta
+        prev_tick_ = current;
+        return last_fps_ = 0.0;
+    }
+    double freq = cv::getTickFrequency(); // ticks per second
+    double fps = freq / static_cast<double>(delta);
+    prev_tick_ = current;
+    last_fps_ = fps;
+    return fps;
+}
+
+double FpsCounter::get() const noexcept
+{
+    return last_fps_;
+}
+
+std::wstring ToWString(const std::string& str) {
+    if (str.empty()) return L"";
+    int size = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring result(size, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &result[0], size);
+    return result;
+}
+
+std::string ToString(const std::wstring& wstr) {
+    if (wstr.empty()) return "";
+    int size = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
+    std::string result(size, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &result[0], size, NULL, NULL);
+    return result;
+}
