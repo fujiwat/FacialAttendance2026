@@ -23,18 +23,18 @@ Save Function<br />
   - Dark colored bounding boxes are shown when there are two faces or more.  The light colored face is the most centered face in the photo.
 
 ## Settings
+| Camera Settings | Value |
+| :--- | :--- |
+| Size (Width x Height) | 640 x 480 |
+| Color/Gray | Color |
+| Mirror | Yes |
+
 | Programming Environment | Value |
 | :--- | :--- |
 | IDE | Visual Studio 2022 Community Edition |
 | Project Template | MFC App |
 | Programming Language | C++ |
 | OpenCV Version | 4.10 |
-
-| Camera Settings | Value |
-| :--- | :--- |
-| Size (Width x Height) | 640 x 480 |
-| Color/Gray | Color |
-| Mirror | Yes |
 
 | Facial Attendance Technologies | Value |
 | :--- | :--- |
