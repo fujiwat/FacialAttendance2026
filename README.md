@@ -25,16 +25,21 @@ Save Function<br />
 ## Settings
 | Programming Environment | Value |
 | :--- | :--- |
-| OpenCV Version | 4.10 |
 | IDE | Visual Studio 2022 Community Edition |
 | Project Template | MFC App |
 | Programming Language | C++ |
+| OpenCV Version | 4.10 |
 
 | Camera Settings | Value |
 | :--- | :--- |
 | Size (Width x Height) | 640 x 480 |
 | Color/Gray | Color |
 | Mirror | Yes |
+
+| Facial Attendance Technologies | Value |
+| :--- | :--- |
+| Facial Detection | Haar Cascade / YuNet |
+| Facial Recognition | SFace |
 
 | HaarCascade Settings | Value |
 | :--- | :--- |
