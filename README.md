@@ -30,7 +30,6 @@ Save Function<br />
 | Project Template | MFC App |
 | Programming Language | C++ |
 
-
 | Camera Settings | Value |
 | :--- | :--- |
 | Size (Width x Height) | 640 x 480 |
