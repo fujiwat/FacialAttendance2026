@@ -1,6 +1,7 @@
 # FacialAttendance2026
-<img width="1004" height="800" alt="image" src="https://github.com/user-attachments/assets/452de1e7-6f53-4fb9-b025-a279f9e1d43d" />
-Progress:  Apr 18.<br />
+<img width="886" height="503" alt="image" src="https://github.com/user-attachments/assets/d1f14509-7529-4c7a-a1b3-e1c7ea3b434f" />
+
+Progress:  Apr 22.<br />
 OK:  Face Detection by HaarCascard<br />
 OK:  Face Detection by YuNet<br />
 OK:  Find center face<br />
@@ -15,21 +16,30 @@ Save Function<br />
 
 ## New Topics
 
+- The project is converted to "C++ MFC App" to make easier the window controls.  It took 2-3 days...
 - It is showing two types of bounding boxes.  Showing HaarCascade and YuNet to compare two tech difference.
   - HaarCascade: Pink, dark pink.
   - YuNet:  Green, dark green.
   - Dark colored bounding boxes are shown when there are two faces or more.  The light colored face is the most centered face in the photo.
 
 ## Settings
-| Library Setting | Value |
-| :--- | :--- |
-| OpenCV Version | 4.10 |
-
 | Camera Settings | Value |
 | :--- | :--- |
 | Size (Width x Height) | 640 x 480 |
 | Color/Gray | Color |
 | Mirror | Yes |
+
+| Programming Environment | Value |
+| :--- | :--- |
+| IDE | Visual Studio 2022 Community Edition |
+| Project Template | MFC App |
+| Programming Language | C++ |
+| OpenCV Version | 4.10 |
+
+| Facial Attendance Technologies | Value |
+| :--- | :--- |
+| Facial Detection | Haar Cascade / YuNet |
+| Facial Recognition | SFace |
 
 | HaarCascade Settings | Value |
 | :--- | :--- |
@@ -53,4 +63,6 @@ Save Function<br />
 | target_id | DNN_TARGET_CPU (default) |
 
 ## Log
-04.19.  Mirror Mode, it is better than the normal mode.
+- 04.22.  New version - remake the project with the new template "C++ MFC App"
+- 04.19.  Mirror Mode, it is better than the normal mode.
+
