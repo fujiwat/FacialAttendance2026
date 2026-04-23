@@ -1,11 +1,11 @@
 # FacialAttendance2026
 <img width="886" height="503" alt="image" src="https://github.com/user-attachments/assets/d1f14509-7529-4c7a-a1b3-e1c7ea3b434f" />
 
-Progress:  Apr 22.<br />
-OK:  Face Detection by HaarCascard<br />
-OK:  Face Detection by YuNet<br />
-OK:  Find center face<br />
-<br />
+Progress:  Apr 23.
+- OK:  Face Detection by HaarCascard
+- OK:  Face Detection by YuNet
+- OK:  Find center face
+- NOW: Adaptive Screen Light
 == Not Yet ==<br />
 Window Controls<br />
 Ring Buffer<br />
