@@ -45,6 +45,9 @@
     <ClInclude Include="OpenCV_without_warning.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="AdaptiveScreenLight.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FacialAttendance2026.cpp">
@@ -62,12 +65,12 @@
     <ClCompile Include="MyFunctions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="AdaptiveScreenLight.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FacialAttendance2026.rc">
-      <Filter>Resource Files</Filter>
-    </ResourceCompile>
-    <ResourceCompile Include="rc FacialAttendance2026.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>
@@ -80,5 +83,8 @@
     <Image Include="res\FacialAttendance2026.ico">
       <Filter>Resource Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\Users\fujiw\OneDrive\MyDoc\MyOE\Thesis\Thesis Book\My document work 文書化作業\Thesis Draft _Takahiro Fujiwara 20260411.txt" />
   </ItemGroup>
 </Project>

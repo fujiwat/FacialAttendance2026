@@ -199,6 +199,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="AdaptiveScreenLight.h" />
     <ClInclude Include="FaceDetector.h" />
     <ClInclude Include="FacialAttendance2026.h" />
     <ClInclude Include="FacialAttendance2026Dlg.h" />
@@ -211,6 +212,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AdaptiveScreenLight.cpp" />
     <ClCompile Include="FaceDetector.cpp" />
     <ClCompile Include="FacialAttendance2026.cpp" />
     <ClCompile Include="FacialAttendance2026Dlg.cpp" />
@@ -224,13 +226,15 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FacialAttendance2026.rc" />
-    <ResourceCompile Include="rc FacialAttendance2026.rc" />
   </ItemGroup>
   <ItemGroup>
     <None Include="res\FacialAttendance2026.rc2" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\FacialAttendance2026.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\Users\fujiw\OneDrive\MyDoc\MyOE\Thesis\Thesis Book\My document work 文書化作業\Thesis Draft _Takahiro Fujiwara 20260411.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

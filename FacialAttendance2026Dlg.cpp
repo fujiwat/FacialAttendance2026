@@ -16,16 +16,15 @@
 #endif
 
 
-// CAboutDlg dialog used for App About
-
+// ---------------------------------------------------------------------------
+// CAboutDlg
+// ---------------------------------------------------------------------------
 class CAboutDlg : public CDialogEx
 {
 public:
-	CAboutDlg();
-
-// Dialog Data
+    CAboutDlg();
 #ifdef AFX_DESIGN_TIME
-	enum { IDD = IDD_ABOUTBOX };
+                enum { IDD = IDD_ABOUTBOX };
 #endif
 
 	protected:
@@ -36,9 +35,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 };
 
-CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX)
-{
-}
+CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX) {}
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 {
@@ -49,17 +46,19 @@ BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
 
-// CFacialAttendance2026Dlg dialog
-
-
+// ---------------------------------------------------------------------------
+// CFacialAttendance2026Dlg
+// ---------------------------------------------------------------------------
 CFacialAttendance2026Dlg::CFacialAttendance2026Dlg(CWnd* pParent /*=nullptr*/)
-	: CDialogEx(IDD_FACIALATTENDANCE2026_DIALOG, pParent)
-	, m_currentCameraIdx(0)
-	, m_shouldChangeCamera(false)
-	, m_timerId(0)
-	, m_pvBits(nullptr)
-	, m_bmpWidth(0)
-	, m_bmpHeight(0)
+    : CDialogEx(IDD_FACIALATTENDANCE2026_DIALOG, pParent)
+    , m_currentCameraIdx(0)
+    , m_shouldChangeCamera(false)
+    , m_timerId(0)
+    , m_pvBits(nullptr)
+    , m_bmpWidth(0)
+    , m_bmpHeight(0)
+    , m_screenLightMode(ScreenLightMode::Auto)
+    , m_sliderValue(100)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -69,6 +68,7 @@ void CFacialAttendance2026Dlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_COMBO_CAMERA, m_comboCamera);
+	DDX_Control(pDX, IDC_SLIDER_SL,    m_sliderScreenLight);  // ← 追加
 }
 
 BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
@@ -76,8 +76,15 @@ BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_WM_TIMER()
+	ON_WM_ACTIVATE()
+	ON_WM_HSCROLL()
 	ON_CBN_SELCHANGE(IDC_COMBO_CAMERA, &CFacialAttendance2026Dlg::OnCbnSelchangeComboCamera)
-	ON_BN_CLICKED(IDCLOSE, &CFacialAttendance2026Dlg::OnBnClickedClose)
+	ON_BN_CLICKED(IDCLOSE,             &CFacialAttendance2026Dlg::OnBnClickedClose)
+	ON_MESSAGE(WM_UPDATE_SCREEN_LIGHT, &CFacialAttendance2026Dlg::OnUpdateScreenLight)
+	ON_MESSAGE(WM_APP + 2,             &CFacialAttendance2026Dlg::OnInitScreenLight)
+	ON_BN_CLICKED(IDC_RADIO_SL_SLIDER, &CFacialAttendance2026Dlg::OnRadioSlSlider)
+	ON_BN_CLICKED(IDC_RADIO_SL_AUTO,   &CFacialAttendance2026Dlg::OnRadioSlAuto)
+	ON_BN_CLICKED(IDC_RADIO_SL_NONE,   &CFacialAttendance2026Dlg::OnRadioSlNone)
 END_MESSAGE_MAP()
 
 // --- ★ここから追加（Windowsからカメラ名を取得する関数） ---
@@ -252,13 +259,31 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 						cv::putText(frame, cv::format("FPS: %.1f", fps), cv::Point(8, 24),
 							cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
 
-						// copy to shared variable
+						// copy to shared variable  ← ここを追加
 						{
 							std::lock_guard<std::mutex> lock(m_frameMutex);
 							m_lastFrame = frame.clone();
 						}
+
+						// Adaptive Screen Light の更新
+						if (m_screenLightMode.load() == ScreenLightMode::Auto) {
+							try {
+								cv::Rect centerFaceRect;
+								if (faces.rows > 0) {
+									centerFaceRect = cv::Rect(
+										static_cast<int>(faces.at<float>(0, 0)),
+										static_cast<int>(faces.at<float>(0, 1)),
+										static_cast<int>(faces.at<float>(0, 2)),
+										static_cast<int>(faces.at<float>(0, 3))
+									);
+								}
+								m_screenLight.Update(frame, centerFaceRect);
+							}
+							catch (...) { }
+						}
+
 						// すぐに描画する。
-						PostMessage(WM_TIMER, 1, 0); // 画面更新の指示
+						PostMessage(WM_TIMER, 1, 0);
 						if (fps > 40.0) {
 							// 40FPSを超えている時は、5ミリ秒だけ休憩してペースを落とす
 							std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -318,20 +343,63 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	}
 	// --- 追加の初期化処理（ここまで） ---
 
+	// Adaptive Screen Light を有効化（カメラ起動と同時にスタート）
+    //m_screenLight.SetEnabled(true, GetSafeHwnd());
+    PostMessage(WM_APP + 2, 0, 0); // ダイアログ表示後に遅延実行
 
-	return TRUE;  // フォーカスをコントロールに設定した場合を除き、TRUE を返します。
+	// ── Screen Light 永続化された設定を復元 ──────────────────
+	// 初期値: AUTO(2)、スライダー 100
+	int savedMode   = AfxGetApp()->GetProfileInt(_T("ScreenLight"), _T("Mode"),   2);
+	int savedSlider = AfxGetApp()->GetProfileInt(_T("ScreenLight"), _T("Slider"), 100);
+	if (savedSlider < 0)   savedSlider = 0;
+	if (savedSlider > 100) savedSlider = 100;
+
+	m_sliderScreenLight.SetRange(0, 100, FALSE);
+	m_sliderScreenLight.SetPos(savedSlider);
+	m_sliderValue = savedSlider;
+
+	CString slLabel;
+	slLabel.Format(_T("%d%%"), savedSlider);
+	SetDlgItemText(IDC_STATIC_SL_VALUE, slLabel);
+
+	ScreenLightMode savedModeEnum = ScreenLightMode::Auto;
+	switch (savedMode)
+	{
+	case 0: savedModeEnum = ScreenLightMode::None;   break;
+	case 1: savedModeEnum = ScreenLightMode::Slider; break;
+	default: savedModeEnum = ScreenLightMode::Auto;  break;
+	}
+	int radioId = IDC_RADIO_SL_AUTO;
+	switch (savedModeEnum)
+	{
+	case ScreenLightMode::Slider: radioId = IDC_RADIO_SL_SLIDER; break;
+	case ScreenLightMode::None:   radioId = IDC_RADIO_SL_NONE;   break;
+	default:                      radioId = IDC_RADIO_SL_AUTO;   break;
+	}
+	CheckRadioButton(IDC_RADIO_SL_SLIDER, IDC_RADIO_SL_NONE, radioId);
+	m_screenLightMode.store(savedModeEnum);
+	// ────────────────────────────────────────────────────────
+    return TRUE;  // フォーカスをコントロールに設定した場合を除き、TRUE を返します。
 }
 void CFacialAttendance2026Dlg::OnSysCommand(UINT nID, LPARAM lParam)
 {
-	if ((nID & 0xFFF0) == IDM_ABOUTBOX)
-	{
-		CAboutDlg dlgAbout;
-		dlgAbout.DoModal();
-	}
-	else
-	{
-		CDialogEx::OnSysCommand(nID, lParam);
-	}
+    UINT cmd = nID & 0xFFF0;
+    if (cmd == IDM_ABOUTBOX) {
+        CAboutDlg dlgAbout;
+        dlgAbout.DoModal();
+    }
+    else if (cmd == SC_MINIMIZE) {
+        m_screenLight.SetMinimized(true);
+        CDialogEx::OnSysCommand(nID, lParam);
+    }
+    else if (cmd == SC_RESTORE) {
+        CDialogEx::OnSysCommand(nID, lParam);
+        m_screenLight.SetMinimized(false);
+        SetWindowPos(&wndTop, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    }
+    else {
+        CDialogEx::OnSysCommand(nID, lParam);
+    }
 }
 
 // If you add a minimize button to your dialog, you will need the code below
@@ -577,4 +645,90 @@ void CFacialAttendance2026Dlg::OnCbnSelchangeComboCamera()
 void CFacialAttendance2026Dlg::OnBnClickedClose()
 {
 	OnCancel();
+}
+
+void CFacialAttendance2026Dlg::OnActivate(UINT nState, CWnd* pWndOther, BOOL bMinimized)
+{
+    CDialogEx::OnActivate(nState, pWndOther, bMinimized);
+    // Alt-Tab で戻ったときにメインダイアログを前面に維持する
+    if (nState != WA_INACTIVE)
+        SetWindowPos(&wndTop, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+}
+
+LRESULT CFacialAttendance2026Dlg::OnUpdateScreenLight(WPARAM wParam, LPARAM lParam)
+{
+    m_screenLight.ApplyColor(static_cast<COLORREF>(wParam));
+    return 0;
+}
+
+LRESULT CFacialAttendance2026Dlg::OnInitScreenLight(WPARAM, LPARAM)
+{
+	// ダイアログ表示後に保存済みモードを実際に適用
+	ApplyScreenLightMode(m_screenLightMode.load());
+	return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Screen Light ヘルパー
+// ---------------------------------------------------------------------------
+/*static*/ COLORREF CFacialAttendance2026Dlg::SliderToColor(int value)
+{
+	BYTE v = static_cast<BYTE>(value * 255 / 100);
+	return RGB(v, v, v);
+}
+
+void CFacialAttendance2026Dlg::ApplyScreenLightMode(ScreenLightMode mode)
+{
+	m_screenLightMode.store(mode);
+	switch (mode)
+	{
+	case ScreenLightMode::Slider:
+		m_screenLight.SetEnabled(true, GetSafeHwnd());
+		m_screenLight.ApplyColor(SliderToColor(m_sliderValue));
+		break;
+	case ScreenLightMode::Auto:
+		m_screenLight.SetEnabled(true, GetSafeHwnd());
+		break;
+	case ScreenLightMode::None:
+	default:
+		m_screenLight.SetEnabled(false);
+		break;
+	}
+	AfxGetApp()->WriteProfileInt(_T("ScreenLight"), _T("Mode"), static_cast<int>(mode));
+}
+
+void CFacialAttendance2026Dlg::ApplySliderValue(int value)
+{
+	m_sliderValue = value;
+	CString label;
+	label.Format(_T("%d%%"), value);
+	SetDlgItemText(IDC_STATIC_SL_VALUE, label);
+	if (m_screenLightMode.load() == ScreenLightMode::Slider)
+		m_screenLight.ApplyColor(SliderToColor(value));
+	AfxGetApp()->WriteProfileInt(_T("ScreenLight"), _T("Slider"), value);
+}
+
+void CFacialAttendance2026Dlg::OnRadioSlSlider()
+{
+	ApplyScreenLightMode(ScreenLightMode::Slider);
+}
+
+void CFacialAttendance2026Dlg::OnRadioSlAuto()
+{
+	ApplyScreenLightMode(ScreenLightMode::Auto);
+}
+
+void CFacialAttendance2026Dlg::OnRadioSlNone()
+{
+	ApplyScreenLightMode(ScreenLightMode::None);
+}
+
+void CFacialAttendance2026Dlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
+{
+	if (pScrollBar && pScrollBar->GetSafeHwnd() == m_sliderScreenLight.GetSafeHwnd())
+	{
+		ApplySliderValue(m_sliderScreenLight.GetPos());
+		return;
+	}
+	CDialogEx::OnHScroll(nSBCode, nPos, pScrollBar);
 }
