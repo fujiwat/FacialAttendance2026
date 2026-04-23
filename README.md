@@ -6,13 +6,12 @@ Progress:  Apr 23.
 - OK:  Face Detection by YuNet
 - OK:  Find center face
 - NOW: Adaptive Screen Light
-== Not Yet ==<br />
-Window Controls<br />
-Ring Buffer<br />
-Feature Extraction<br />
-Person Identification (= Face Recognition)<br />
-Save Function<br />
-<br />
+- == Not Yet ==
+- Window Controls
+- Ring Buffer
+- Feature Extraction
+- Person Identification (= Face Recognition)
+- Save Function
 
 ## New Topics
 
