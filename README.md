@@ -43,8 +43,8 @@ Progress:  Apr 23.
 | HaarCascade Settings | Value |
 | :--- | :--- |
 | Model | haarcascade_frontalface_default.xml |
-| HaarCascadeScaleFactor |  1.2 |
-| HaarCascadeMinNeighbors | 10 |
+| HaarCascadeScaleFactor |  1.1 |
+| HaarCascadeMinNeighbors | 8 |
 | Detect_HaarDetectionType | cv::CASCADE_DO_CANNY_PRUNING |
 | HaarCascadeMinFaceWidth | 110 |
 | HaarCascadeMinFaceHeight | 110 |
