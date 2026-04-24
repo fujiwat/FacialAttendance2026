@@ -14,7 +14,7 @@ Progress:  Apr 23.
 - Save Function
 
 ## New Topics
-
+- Multiple Camera support, Camera is tested and code modified for laptop PC, desktop PC.
 - The project is converted to "C++ MFC App" to make easier the window controls.  It took 2-3 days...
 - It is showing two types of bounding boxes.  Showing HaarCascade and YuNet to compare two tech difference.
   - HaarCascade: Pink, dark pink.
