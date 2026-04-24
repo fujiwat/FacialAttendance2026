@@ -38,7 +38,7 @@ void AdaptiveScreenLight::SetEnabled(bool enabled, HWND parentHwnd)
     if (enabled_) {
         if (!hwndBackground_) CreateBackgroundWindow();
         screenBrightness_ = 0.0f;           // 黒からスタート
-        currentColor_     = RGB(0, 0, 0);
+        currentColor_     = 0xFFFFFFFF;     // ← 追加: -1を設定して必ず次回の描画を強制する
         if (hwndBackground_) ShowWindow(hwndBackground_, SW_SHOW);
         if (hwndNotify_)
             SetWindowPos(hwndNotify_, HWND_TOP, 0, 0, 0, 0,
@@ -60,13 +60,29 @@ void AdaptiveScreenLight::SetMinimized(bool minimized)
     }
 }
 
-void AdaptiveScreenLight::Update(const cv::Mat& frame, const cv::Rect& faceRect)
+void AdaptiveScreenLight::Update(const cv::Mat& frame, const cv::Rect& faceRect, float manualBrightness)
 {
     if (!enabled_ || frame.empty() || !hwndNotify_) return;
 
     // Step 1: 顔領域の輝度を計測
     float measured = MeasureAmbientBrightness(frame);
-    lastAmbient_ = measured;        // ← 追加：計測値を保存
+    bool ambientChanged = std::abs(lastAmbient_ - measured) >= 0.01f;
+    lastAmbient_ = measured;
+
+    // マニュアル(Slider)モード処理
+    if (manualBrightness >= 0.0f) {
+        screenBrightness_ = manualBrightness;
+        lastTarget_ = manualBrightness;
+        COLORREF newColor = ComputeColor(screenBrightness_, lastSkinBgr_);
+        
+        // 色が変わった、または環境光が1%以上変動した場合に再描画通知を送る
+        if (newColor != currentColor_ || ambientChanged) {
+            currentColor_ = newColor;
+            ::PostMessage(hwndNotify_, WM_UPDATE_SCREEN_LIGHT,
+                          static_cast<WPARAM>(newColor), 0);
+        }
+        return;
+    }
 
     // Step 2: ambient=20%以下は常に100%、それ以上は二乗曲線＋50%フロア
     float targetBrightness;
@@ -97,6 +113,16 @@ void AdaptiveScreenLight::ApplyColor(COLORREF color)
 {
     currentColor_ = color;
     RepaintBackground();
+}
+
+void AdaptiveScreenLight::ApplyManualBrightness(float brightness)
+{
+    screenBrightness_ = brightness;
+    COLORREF newColor = ComputeColor(brightness, lastSkinBgr_);
+    if (newColor != currentColor_) {
+        currentColor_ = newColor;
+        RepaintBackground();
+    }
 }
 
 // ── Win32 ─────────────────────────────────────────────────
@@ -131,39 +157,10 @@ void AdaptiveScreenLight::DestroyBackgroundWindow()
 
 void AdaptiveScreenLight::RepaintBackground()
 {
-    if (!hwndBackground_) return;
-
-    RECT rc;
-    GetClientRect(hwndBackground_, &rc);
-    HDC hdc = GetDC(hwndBackground_);
-    if (!hdc) return;
-
-    HBRUSH brush = CreateSolidBrush(currentColor_);
-    FillRect(hdc, &rc, brush);
-    DeleteObject(brush);
-
-    // 3つの値を表示
-    char text[128];
-    sprintf_s(text, sizeof(text),
-              "ambient: %.0f%%  light: %.0f%%",
-              lastAmbient_ * 100.0f,
-              screenBrightness_ * 100.0f);
-
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(0, 0, 128));  // 紺色（ネイビー）
-
-    HFONT hFont = CreateFontA(
-        96, 0, 0, 0, FW_HEAVY, FALSE, FALSE, FALSE,  // ← FW_BOLD → FW_HEAVY
-        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-
-    RECT textRect = { 20, rc.bottom - 120, rc.right, rc.bottom };
-    DrawTextA(hdc, text, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-    SelectObject(hdc, hOldFont);
-    DeleteObject(hFont);
-    ReleaseDC(hwndBackground_, hdc);
+    if (hwndBackground_) {
+        // 背景の再描画命令をWindowsのメッセージキューに送る
+        InvalidateRect(hwndBackground_, nullptr, FALSE);
+    }
 }
 
 LRESULT CALLBACK AdaptiveScreenLight::WndProc(HWND hwnd, UINT msg,
@@ -181,13 +178,39 @@ LRESULT CALLBACK AdaptiveScreenLight::WndProc(HWND hwnd, UINT msg,
     }
     if (msg == WM_PAINT) {
         PAINTSTRUCT ps;
-        BeginPaint(hwnd, &ps);
+        HDC hdc = BeginPaint(hwnd, &ps);
         auto* self = reinterpret_cast<AdaptiveScreenLight*>(
             GetWindowLongPtrW(hwnd, GWLP_USERDATA));
         if (self) {
-            HBRUSH brush = CreateSolidBrush(self->currentColor_);
-            FillRect(ps.hdc, &ps.rcPaint, brush);
+            // 1. 背景の塗りつぶし
+            HBRUSH brush = CreateSolidBrush(self->currentColor_ != 0xFFFFFFFF ? self->currentColor_ : RGB(0,0,0));
+            // 最適化のためクリッピング領域(rcPaint)ではなくクライアント領域全体を取得
+            RECT clientRc;
+            GetClientRect(hwnd, &clientRc);
+            FillRect(hdc, &clientRc, brush);
             DeleteObject(brush);
+
+            // 2. 文字の描画
+            char text[128];
+            sprintf_s(text, sizeof(text),
+                      "ambient: %.0f%%  light: %.0f%%",
+                      self->lastAmbient_ * 100.0f,
+                      self->screenBrightness_ * 100.0f);
+
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, RGB(0, 0, 128));  // 紺色（ネイビー）
+
+            HFONT hFont = CreateFontA(
+                96, 0, 0, 0, FW_HEAVY, FALSE, FALSE, FALSE,
+                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+
+            RECT textRect = { 20, clientRc.bottom - 120, clientRc.right, clientRc.bottom };
+            DrawTextA(hdc, text, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            SelectObject(hdc, hOldFont);
+            DeleteObject(hFont);
         }
         EndPaint(hwnd, &ps);
         return 0;

@@ -16,7 +16,10 @@ public:
     void SetMinimized(bool minimized);
 
     // 毎フレーム呼び出す（ワーカースレッドからOK）
-    void Update(const cv::Mat& frame, const cv::Rect& faceRect);
+    void Update(const cv::Mat& frame, const cv::Rect& faceRect, float manualBrightness = -1.0f);
+
+    // 手動で明るさを設定してUIに即反映させる（UIスレッド用）
+    void ApplyManualBrightness(float brightness);
 
     // UIスレッドから呼ぶ（PostMessage経由）
     void ApplyColor(COLORREF color);

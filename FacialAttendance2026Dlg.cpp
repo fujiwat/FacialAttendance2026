@@ -266,7 +266,8 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 						}
 
 						// Adaptive Screen Light の更新
-						if (m_screenLightMode.load() == ScreenLightMode::Auto) {
+						auto mode = m_screenLightMode.load();
+						if (mode != ScreenLightMode::None) {
 							try {
 								cv::Rect centerFaceRect;
 								if (faces.rows > 0) {
@@ -277,7 +278,9 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 										static_cast<int>(faces.at<float>(0, 3))
 									);
 								}
-								m_screenLight.Update(frame, centerFaceRect);
+								// Sliderモードの時はスライダーの値を渡し、それ以外は-1.0fを渡す
+								float manualB = (mode == ScreenLightMode::Slider) ? (m_sliderValue / 100.0f) : -1.0f;
+								m_screenLight.Update(frame, centerFaceRect, manualB);
 							}
 							catch (...) { }
 						}
@@ -684,7 +687,7 @@ void CFacialAttendance2026Dlg::ApplyScreenLightMode(ScreenLightMode mode)
 	{
 	case ScreenLightMode::Slider:
 		m_screenLight.SetEnabled(true, GetSafeHwnd());
-		m_screenLight.ApplyColor(SliderToColor(m_sliderValue));
+		m_screenLight.ApplyManualBrightness(m_sliderValue / 100.0f); // ← 変更
 		break;
 	case ScreenLightMode::Auto:
 		m_screenLight.SetEnabled(true, GetSafeHwnd());
@@ -704,7 +707,7 @@ void CFacialAttendance2026Dlg::ApplySliderValue(int value)
 	label.Format(_T("%d%%"), value);
 	SetDlgItemText(IDC_STATIC_SL_VALUE, label);
 	if (m_screenLightMode.load() == ScreenLightMode::Slider)
-		m_screenLight.ApplyColor(SliderToColor(value));
+		m_screenLight.ApplyManualBrightness(value / 100.0f); // ← 変更
 	AfxGetApp()->WriteProfileInt(_T("ScreenLight"), _T("Slider"), value);
 }
 
@@ -727,6 +730,13 @@ void CFacialAttendance2026Dlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pS
 {
 	if (pScrollBar && pScrollBar->GetSafeHwnd() == m_sliderScreenLight.GetSafeHwnd())
 	{
+		// 自動的にSlider Valueモードへ切り替え
+		if (m_screenLightMode.load() != ScreenLightMode::Slider)
+		{
+			CheckRadioButton(IDC_RADIO_SL_SLIDER, IDC_RADIO_SL_NONE, IDC_RADIO_SL_SLIDER);
+			ApplyScreenLightMode(ScreenLightMode::Slider);
+		}
+		
 		ApplySliderValue(m_sliderScreenLight.GetPos());
 		return;
 	}
