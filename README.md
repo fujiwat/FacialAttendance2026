@@ -5,7 +5,8 @@ Progress:  Apr 23.
 - OK:  Face Detection by HaarCascard
 - OK:  Face Detection by YuNet
 - OK:  Find center face
-- NOW: Adaptive Screen Light
+- OK:  Adaptive Screen Light
+- OK:  Multiple Camera/Hardware.  Laptop PC, Desktop PC.
 - == Not Yet ==
 - Window Controls
 - Ring Buffer
