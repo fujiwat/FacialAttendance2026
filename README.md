@@ -28,9 +28,7 @@ Progress:  Apr 24.
 | Size (Width x Height) | 640 x 480 |
 | Color/Gray | Color |
 | Mirror | Yes |
-
-| Programming Environment | Value |
-| :--- | :--- |
+| **Programming Environment** | **Value** |
 | IDE | Visual Studio 2022 Community Edition |
 | Project Template | MFC App |
 | Programming Language | C++ |
