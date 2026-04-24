@@ -34,12 +34,9 @@ Progress:  Apr 24.
 | Programming Language | C++ |
 | OpenCV Version | 4.10 |
 | **[Facial Attendance Technologies]** | **[Value]** |
-| :--- | :--- |
 | Facial Detection | Haar Cascade / YuNet |
 | Facial Recognition | SFace |
-
-| HaarCascade Settings | Value |
-| :--- | :--- |
+| **[HaarCascade Settings]** | **[Value]** |
 | Model | haarcascade_frontalface_default.xml |
 | HaarCascadeScaleFactor |  1.1 |
 | HaarCascadeMinNeighbors | 8 |
@@ -49,9 +46,7 @@ Progress:  Apr 24.
 | HaarCascadeMaxFaceWidth | 0 |
 | HaarCascadeMaxFaceHeight | 0 |
 | Learning_eigenDistanceThreshold | 3220 (not used)|
-
-| YuNet Settings | Value |
-| :--- | :--- |
+| **[YuNet Settings]** | **[Value]** |
 | Model | face_detection_yunet_2023mar.onnx |
 | score_threshold | 0.9 |
 | nms_threshold | 0.3 (default) |
