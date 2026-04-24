@@ -62,7 +62,8 @@ Progress:  Apr 23.
 | target_id | DNN_TARGET_CPU (default) |
 
 ## Log
-- 04.23.  Implimenting Adaptive Screen Light, not perfect now.
+- 04.24.  Adaptive Screen Light, Slider completed.
+- 04.23.  Implimenting Adaptive Screen Light, not completed.
 - 04.22.  New version - remake the project with the new template "C++ MFC App"
 - 04.19.  Mirror Mode, it is better than the normal mode.
 
