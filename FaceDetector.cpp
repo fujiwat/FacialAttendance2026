@@ -2,6 +2,8 @@
 #include "pch.h"
 #include <string>
 #include <vector>
+#include <thread>  // ★追加
+#include <chrono>  // ★追加
 
 // Windows 固有の設定（windows.h の前に置く）
 #define WIN32_LEAN_AND_MEAN
@@ -17,24 +19,56 @@
 #include "FaceDetector.h"
 #include "MyConst.h"
 
-// Initialize camera: outputs frameWidth, frameHeight and cap, returns success flag.
-bool InitCamera(int& frameWidth, int& frameHeight, cv::VideoCapture& cap)
+// ★古い InitCamera 関数は丸ごと削除します！
+// bool InitCamera(int& frameWidth, int& frameHeight, cv::VideoCapture& cap) { ... }
+
+// ★追加: クラスに移植された安全なオープナー
+bool FaceDetector::OpenCamera(int cameraIdx)
 {
-    cap.open(0);
-    if (!cap.isOpened()) {
-        // ★エラーメッセージを削除
-        // MyMessageBoxA(NULL, MB_OK | MB_ICONERROR, APP_NAME_SHORT, "Can not find PC Camera.");
-        frameWidth = 0;
-        frameHeight = 0;
+    if (cap_.isOpened()) {
+        cap_.release();
+    }
+
+    int targetW = frameWidth_;    // which is CaptureWidth by default
+    int targetH = frameHeight_;   // which is CaptureHeight by default
+
+    // --- 1回目の挑戦：指定解像度を要求してみる ---
+    cap_.open(cameraIdx);
+    if (!cap_.isOpened()) {
         return false;
     }
 
-    // Reduce resolution to lower computation
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, CaptureWidth);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, CaptureHeight);
+    bool needsFallback = false;
+    cap_.set(cv::CAP_PROP_FRAME_WIDTH, targetW);
+    cap_.set(cv::CAP_PROP_FRAME_HEIGHT, targetH);
 
-    frameWidth = int(cap.get(cv::CAP_PROP_FRAME_WIDTH));
-    frameHeight = int(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
+    // テスト読み込み（解像度指定のせいでドライバがご機嫌斜めになっていないか確認）
+    cv::Mat testFrame;
+    bool testOk = false;
+    
+    for (int i = 0; i < 5; i++) {
+        if (cap_.read(testFrame) && !testFrame.empty()) {
+            testOk = true;
+            break; 
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    }
+
+    if (!testOk) {
+        needsFallback = true; 
+    }
+
+    // --- 2回目の挑戦（フォールバック）：解像度指定なしで開き直す ---
+    if (needsFallback) {
+        cap_.release();
+        std::this_thread::sleep_for(std::chrono::milliseconds(200)); 
+        
+        cap_.open(cameraIdx);
+        if (!cap_.isOpened()) {
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -44,14 +78,15 @@ FaceDetector::FaceDetector()
     , haarCascade_()
     , windowName_(APP_NAME_LONG)
 	, cap_()
-	, frameWidth_(CaptureWidth)  // ★デフォルト値を設定
-	, frameHeight_(CaptureHeight) // ★デフォルト値を設定
+	, frameWidth_(CaptureWidth)  
+	, frameHeight_(CaptureHeight) 
 	, cameraInitialized_(false)
 	, yunetInitialized_(false)
 	, haarInitialized_(false)
 {
     // 1) Initialize camera
-    cameraInitialized_ = InitCamera(frameWidth_, frameHeight_, cap_);
+    // ★起動時にもこの安全なメソッドを叩かせる
+    cameraInitialized_ = OpenCamera(0);
 
     // 2) Initialize YuNet detector
     const std::string modelPath = YuNetModelPath;

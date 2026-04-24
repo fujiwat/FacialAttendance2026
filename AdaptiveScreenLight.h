@@ -30,6 +30,10 @@ private:
     void DestroyBackgroundWindow();
     void RepaintBackground();
 
+    // ★追加: 描画ヘルパー関数
+    COLORREF CalculateTextColor(COLORREF bgColor) const;
+    void DrawStatusText(HDC hdc, const RECT& clientRc, const char* text, COLORREF textColor);
+
     float     MeasureFaceBrightness(const cv::Mat& frame,
                                     const cv::Rect& faceRect) const;
     float     MeasureAmbientBrightness(const cv::Mat& frame) const;

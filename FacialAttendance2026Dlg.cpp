@@ -7,6 +7,7 @@
 #include "FacialAttendance2026Dlg.h"
 #include "resource.h"
 #include "afxdialogex.h"
+#include "MyConst.h"
 
 #include <Dshow.h>
 #pragma comment(lib, "strmiids.lib")
@@ -202,67 +203,90 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 		m_shouldChangeCamera = false;
 	}
 
-	// 4. ワーカースレッドの開始（裏でカメラ映像を処理し続ける）
 	// 4. ワーカースレッドの開始
-	std::thread([this]() {
+	std::thread t([this]() {
 		cv::Mat frame;
-		while (true) {
+		while (!m_bStopThread) {
 			if (!::IsWindow(GetSafeHwnd())) break;
 
 			cv::VideoCapture& cap = m_detector.GetCapture();
 
 			try {
+				// ★ドロップダウンから切り替えた時の処理がこれだけで済む！
 				if (m_shouldChangeCamera) {
 					{
 						std::lock_guard<std::mutex> lock(m_frameMutex);
 						m_lastFrame = cv::Mat(); // 切り替え時に一旦クリア
 					}
-					cap.release();
-					cap.open(m_currentCameraIdx, cv::CAP_DSHOW);
-					
-					// ★デバッグ: カメラが開けたか確認
-					if (cap.isOpened()) {
-						cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-						cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
-					} else {
-//						OutputDebugString(_T("Failed to open camera\n"));
-					}
-					
+					// FaceDetector内の安全なオープナーを呼ぶ
+					m_detector.OpenCamera(m_currentCameraIdx);
+
 					m_shouldChangeCamera = false;
 				}
 
 				// カメラから画像が読み込めるかチェック
 				if (cap.isOpened()) {
 					bool ret = cap.read(frame);
-					if (!ret) {
-//						OutputDebugString(_T("Failed to read frame\n"));
-					}
-					if (frame.empty()) {
-//						OutputDebugString(_T("Frame is empty\n"));
-					}
 					
 					if (ret && !frame.empty()) {
 						cv::flip(frame, frame, 1);	// mirror mode
 
+						// --- 安全なクロップ＆リサイズ処理 ---
+						int srcW = frame.cols;
+						int srcH = frame.rows;
+						int dstW = m_detector.GetFrameWidth();
+						int dstH = m_detector.GetFrameHeight();
+						
+						cv::Mat resizedFrame;
+
+						// ゼロ除算防止と安全確認
+						if (dstW > 0 && dstH > 0 && srcW > 0 && srcH > 0) {
+							double srcAspect = (double)srcW / srcH;
+							double dstAspect = (double)dstW / dstH;
+
+							cv::Rect cropRect;
+							if (srcAspect > dstAspect) {
+								int newW = (int)(srcH * dstAspect);
+								cropRect = cv::Rect((srcW - newW) / 2, 0, newW, srcH);
+							}
+							else {
+								int newH = (int)(srcW / dstAspect);
+								cropRect = cv::Rect(0, (srcH - newH) / 2, srcW, newH);
+							}
+
+							// 万が一計算結果枠がはみ出しても、安全な範囲に強制的に収める
+							cropRect &= cv::Rect(0, 0, srcW, srcH);
+
+							// クロップしてリサイズ
+							if (cropRect.width > 0 && cropRect.height > 0) {
+								cv::Mat croppedFrame = frame(cropRect);
+								cv::resize(croppedFrame, resizedFrame, cv::Size(dstW, dstH));
+							} else {
+								resizedFrame = frame.clone();
+							}
+						} else {
+							resizedFrame = frame.clone();
+						}
+
 						// YuNet Facial Detection
 						cv::Mat faces;
-						m_detector.DetectFacesYunet(frame, faces);
-						m_detector.DrawBoundingBoxesYunet(frame, faces);
+						m_detector.DetectFacesYunet(resizedFrame, faces);
+						m_detector.DrawBoundingBoxesYunet(resizedFrame, faces);
 
-						// 2. Haar Cascade Facial Detection
+						// Haar Cascade Facial Detection
 						std::vector<cv::Rect> haarRects;
-						m_detector.DetectFacesHaar(frame, haarRects);
-						m_detector.DrawBoundingBoxesHaar(frame, haarRects);
+						m_detector.DetectFacesHaar(resizedFrame, haarRects);
+						m_detector.DrawBoundingBoxesHaar(resizedFrame, haarRects);
 
-						// 3. FPS calculation and drawing on the frame
+						// FPS calculation
 						double fps = m_fpsCounter.tick();
-						cv::putText(frame, cv::format("FPS: %.1f", fps), cv::Point(8, 24),
+						cv::putText(resizedFrame, cv::format("FPS: %.1f", fps), cv::Point(8, 24),
 							cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
 
-						// copy to shared variable  ← ここを追加
+						// copy to shared variable
 						{
 							std::lock_guard<std::mutex> lock(m_frameMutex);
-							m_lastFrame = frame.clone();
+							m_lastFrame = resizedFrame.clone(); 
 						}
 
 						// Adaptive Screen Light の更新
@@ -278,17 +302,15 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 										static_cast<int>(faces.at<float>(0, 3))
 									);
 								}
-								// Sliderモードの時はスライダーの値を渡し、それ以外は-1.0fを渡す
 								float manualB = (mode == ScreenLightMode::Slider) ? (m_sliderValue / 100.0f) : -1.0f;
-								m_screenLight.Update(frame, centerFaceRect, manualB);
+								m_screenLight.Update(resizedFrame, centerFaceRect, manualB);
 							}
-							catch (...) { }
+							catch (...) {}
 						}
 
-						// すぐに描画する。
+						// 画面に描画する
 						PostMessage(WM_TIMER, 1, 0);
 						if (fps > 40.0) {
-							// 40FPSを超えている時は、5ミリ秒だけ休憩してペースを落とす
 							std::this_thread::sleep_for(std::chrono::milliseconds(5));
 						}
 					}
@@ -299,19 +321,20 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 				else {
 					std::this_thread::sleep_for(std::chrono::milliseconds(1));
 				}
-			}  // ★ try ブロックの終わり
+			}  // try ブロックの終わり
 			catch (...) {
 				m_shouldChangeCamera = false;
 				if (cap.isOpened()) cap.release();
-				// ★ここで休憩！空回りでPCがフリーズ（CPU100%）するのを防ぐ
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			}
-		}
-	}).detach();
+		} // while (!m_bStopThread) の終わり
+	}); // スレッド定義の終わり
 
-	// 5. 描画更新用のタイマー開始 (33ms間隔 ＝ 約30FPS)
+	// 警告 C26444 を回避する
+	m_workerThread = std::move(t);
+
+	// 5. 描画更新用のタイマー
 	// m_timerId = SetTimer(1, 33, nullptr);
-
 	//m_largeFont.CreatePointFont(140, _T("MS Shell Dlg"));
 	//GetDlgItem(IDC_BUTTON_Photo_OK)->SetFont(&m_largeFont);
 	//GetDlgItem(IDCLOSE)->SetFont(&m_largeFont);
@@ -326,7 +349,7 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	_tcscpy_s(lf.lfFaceName, _T("Segoe UI"));
 
 	// --- 3. 「太字」フォントの実体化 ---
-	lf.lfWeight = FW_HEAVY; // 極太
+//	lf.lfWeight = FW_HEAVY; // 極太
 	m_fontBold.DeleteObject();
 	m_fontBold.CreateFontIndirect(&lf);
 
@@ -347,7 +370,7 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	// --- 追加の初期化処理（ここまで） ---
 
 	// Adaptive Screen Light を有効化（カメラ起動と同時にスタート）
-    //m_screenLight.SetEnabled(true, GetSafeHwnd());
+//    //m_screenLight.SetEnabled(true, GetSafeHwnd());
     PostMessage(WM_APP + 2, 0, 0); // ダイアログ表示後に遅延実行
 
 	// ── Screen Light 永続化された設定を復元 ──────────────────
@@ -469,8 +492,8 @@ void CFacialAttendance2026Dlg::UpdateFrame()
 	CBitmap* pOldBitmap = memDC.SelectObject(&backBuffer);
 
 	if (m_lastFrame.empty()) {
-		// 画面を黒い長方形で塗りつぶす
-		memDC.FillSolidRect(&rect, RGB(0, 0, 0));
+		// 画面を黒い長方形ではなく、ダイアログの背景色で塗りつぶす
+		memDC.FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
 	}
 	else {
 		HBITMAP hBmp = CreateBitmapFromMat(m_lastFrame);
@@ -479,8 +502,8 @@ void CFacialAttendance2026Dlg::UpdateFrame()
 			imageDC.CreateCompatibleDC(&memDC);
 			HBITMAP hOld = (HBITMAP)imageDC.SelectObject(hBmp);
 
-			// 背景を塗りつぶさない（コメントアウト）
-			// memDC.FillSolidRect(&rect, RGB(0, 0, 0));
+			// ★ここを追加：画像を貼り付ける前に、背景をダイアログ色で塗っておく
+			memDC.FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
 
 			int srcW = m_lastFrame.cols;
 			int srcH = m_lastFrame.rows;
@@ -540,8 +563,8 @@ void CFacialAttendance2026Dlg::UpdateFrame0()
 	pPreview->GetClientRect(&rect);
 
 	if (m_lastFrame.empty()) {
-		// 画面を黒い長方形で塗りつぶす
-		pDC->FillSolidRect(&rect, RGB(0, 0, 0));
+		// 画面を黒い長方形ではなく、ダイアログの背景色で塗りつぶす
+		pDC->FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
 	}
 	else {
 		HBITMAP hBmp = CreateBitmapFromMat(m_lastFrame);
@@ -647,7 +670,22 @@ void CFacialAttendance2026Dlg::OnCbnSelchangeComboCamera()
 }
 void CFacialAttendance2026Dlg::OnBnClickedClose()
 {
-	OnCancel();
+    // CLOSEボタンが押されたときも、×ボタンやESCと同じ終了ルートをたどらせる
+    OnCancel();
+}
+
+void CFacialAttendance2026Dlg::OnCancel()
+{
+    // スレッドに終了を通知
+    m_bStopThread = true;
+    
+    // スレッドが安全に終わるまで待機
+    if (m_workerThread.joinable()) {
+        m_workerThread.join();
+    }
+
+    // 本来のダイアログ終了処理（ここでウィンドウが閉じます）
+    CDialogEx::OnCancel();
 }
 
 void CFacialAttendance2026Dlg::OnActivate(UINT nState, CWnd* pWndOther, BOOL bMinimized)

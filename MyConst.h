@@ -9,13 +9,13 @@
 
 #pragma region Camera_Constants
 #	define CaptureWidth 640
-#	define CaptureHeight 480
+#	define CaptureHeight 360
 #pragma endregion
 
 #pragma region HaarCascade_Constants
 #	define HaarCascadeXml "haarcascade_frontalface_default.xml"
-#   define HaarCascadeScaleFactor 1.2
-#   define HaarCascadeMinNeighbors 10
+#   define HaarCascadeScaleFactor 1.1
+#   define HaarCascadeMinNeighbors 8
 #   define HaarCascadeMinFaceWidth 110
 #   define HaarCascadeMinFaceHeight 110
 #   define HaarCascadeMaxFaceWidth 0

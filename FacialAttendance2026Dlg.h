@@ -6,6 +6,7 @@
 #include "AdaptiveScreenLight.h"
 #include <atomic>
 #include <mutex>
+#include <thread>
 
 #define WM_UPDATE_SCREEN_LIGHT (WM_APP + 1)
 
@@ -89,6 +90,11 @@ private:
     // スライダー値からグレースケール COLORREF を求める
     static COLORREF SliderToColor(int value);
 
+    // ★追加: スレッド処理用の変数
+    std::thread m_workerThread;
+    std::atomic<bool> m_bStopThread{ false };
+
 public:
-    afx_msg void OnBnClickedClose();
+    afx_msg void OnBnClickedClose();  // 既存のボタン用処理
+    virtual void OnCancel();          // ← ★追加！ (×ボタンやESCキー用)
 };

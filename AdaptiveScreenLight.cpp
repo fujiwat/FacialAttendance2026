@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "AdaptiveScreenLight.h"
 #include "FacialAttendance2026Dlg.h"    // WM_UPDATE_SCREEN_LIGHT
+#include <thread>
 
 static const wchar_t* kBgClassName = L"AdaptiveScreenLightBg";
 
@@ -181,41 +182,69 @@ LRESULT CALLBACK AdaptiveScreenLight::WndProc(HWND hwnd, UINT msg,
         HDC hdc = BeginPaint(hwnd, &ps);
         auto* self = reinterpret_cast<AdaptiveScreenLight*>(
             GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+
         if (self) {
-            // 1. 背景の塗りつぶし
-            HBRUSH brush = CreateSolidBrush(self->currentColor_ != 0xFFFFFFFF ? self->currentColor_ : RGB(0,0,0));
-            // 最適化のためクリッピング領域(rcPaint)ではなくクライアント領域全体を取得
             RECT clientRc;
             GetClientRect(hwnd, &clientRc);
+            
+            // 現在の背景色
+            COLORREF bgColor = (self->currentColor_ != 0xFFFFFFFF) ? self->currentColor_ : RGB(0, 0, 0);
+
+            // 1. 背景の塗りつぶし
+            HBRUSH brush = CreateSolidBrush(bgColor);
             FillRect(hdc, &clientRc, brush);
             DeleteObject(brush);
 
-            // 2. 文字の描画
+            // 2. 文字列の準備
             char text[128];
             sprintf_s(text, sizeof(text),
                       "ambient: %.0f%%  light: %.0f%%",
                       self->lastAmbient_ * 100.0f,
                       self->screenBrightness_ * 100.0f);
 
-            SetBkMode(hdc, TRANSPARENT);
-            SetTextColor(hdc, RGB(0, 0, 128));  // 紺色（ネイビー）
-
-            HFONT hFont = CreateFontA(
-                96, 0, 0, 0, FW_HEAVY, FALSE, FALSE, FALSE,
-                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-
-            RECT textRect = { 20, clientRc.bottom - 120, clientRc.right, clientRc.bottom };
-            DrawTextA(hdc, text, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-            SelectObject(hdc, hOldFont);
-            DeleteObject(hFont);
+            // 3. テキスト描画（ヘルパー関数呼び出し）
+            COLORREF textColor = self->CalculateTextColor(bgColor);
+            self->DrawStatusText(hdc, clientRc, text, textColor);
         }
         EndPaint(hwnd, &ps);
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+// ── 描画ヘルパー関数 ─────────────────────────────────────────
+
+COLORREF AdaptiveScreenLight::CalculateTextColor(COLORREF bgColor) const
+{
+    // 背景色から輝度(Luminance)を計算 (NTSC加重平均法)
+    int r = GetRValue(bgColor);
+    int g = GetGValue(bgColor);
+    int b = GetBValue(bgColor);
+    int luminance = (r * 299 + g * 587 + b * 114) / 1000;
+            
+    // 背景が明るければ紺色、暗ければ明るい水色を返す
+    return (luminance > 128) ? RGB(0, 0, 128) : RGB(200, 255, 255);
+}
+
+void AdaptiveScreenLight::DrawStatusText(HDC hdc, const RECT& clientRc, const char* text, COLORREF textColor)
+{
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, textColor);
+
+    // フォントの作成と適用
+    HFONT hFont = CreateFontA(
+        96, 0, 0, 0, FW_HEAVY, FALSE, FALSE, FALSE,
+        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+
+    // 描画領域の計算とテキスト描画
+    RECT textRect = { 20, clientRc.bottom - 120, clientRc.right, clientRc.bottom };
+    DrawTextA(hdc, text, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    // 後始末
+    SelectObject(hdc, hOldFont);
+    DeleteObject(hFont);
 }
 
 // ── 輝度・色計算 ──────────────────────────────────────────

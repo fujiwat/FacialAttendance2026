@@ -11,6 +11,9 @@ public:
 	FaceDetector();
 	~FaceDetector();
 
+	// ★追加: 安全にカメラを開く（失敗したらフォールバックする）機能
+	bool OpenCamera(int cameraIdx = 0);
+
 	// YuNet detector parameter setters and getters
 	void DetectFacesYunet(const cv::Mat& frame, cv::Mat& faces);
 	void DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces);
