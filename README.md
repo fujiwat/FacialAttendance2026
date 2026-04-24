@@ -25,7 +25,7 @@ Progress:  Apr 24.
 ## Settings
 | [Camera Settings] | [Value] |
 | :--- | :--- |
-| Size (Width x Height) | 640 x 360 |
+|  Size (Width x Height) | 640 x 360 |
 | Color/Gray | Color |
 | Mirror | Yes |
 | **[Programming Environment]** | **[Value]** |
