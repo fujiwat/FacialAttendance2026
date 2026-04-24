@@ -33,8 +33,7 @@ Progress:  Apr 24.
 | Project Template | MFC App |
 | Programming Language | C++ |
 | OpenCV Version | 4.10 |
-
-| Facial Attendance Technologies | Value |
+| **[Facial Attendance Technologies]** | **[Value]** |
 | :--- | :--- |
 | Facial Detection | Haar Cascade / YuNet |
 | Facial Recognition | SFace |
