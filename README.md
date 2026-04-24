@@ -29,30 +29,30 @@ Progress:  Apr 24.
 | &ensp; Color/Gray | Color |
 | &ensp; Mirror | Yes |
 | **[Programming Environment]** | **[Value]** |
-| IDE | Visual Studio 2022 Community Edition |
-| Project Template | MFC App |
-| Programming Language | C++ |
-| OpenCV Version | 4.10 |
+| &ensp; IDE | Visual Studio 2022 Community Edition |
+| &ensp; Project Template | MFC App |
+| &ensp; Programming Language | C++ |
+| &ensp; OpenCV Version | 4.10 |
 | **[Facial Attendance Technologies]** | **[Value]** |
-| Facial Detection | Haar Cascade / YuNet |
-| Facial Recognition | SFace |
+| &ensp; Facial Detection | Haar Cascade / YuNet |
+| &ensp; Facial Recognition | SFace |
 | **[HaarCascade Settings]** | **[Value]** |
-| Model | haarcascade_frontalface_default.xml |
-| HaarCascadeScaleFactor |  1.1 |
-| HaarCascadeMinNeighbors | 8 |
-| Detect_HaarDetectionType | cv::CASCADE_DO_CANNY_PRUNING |
-| HaarCascadeMinFaceWidth | 110 |
-| HaarCascadeMinFaceHeight | 110 |
-| HaarCascadeMaxFaceWidth | 0 |
-| HaarCascadeMaxFaceHeight | 0 |
-| Learning_eigenDistanceThreshold | 3220 (not used)|
+| &ensp; Model | haarcascade_frontalface_default.xml |
+| &ensp; HaarCascadeScaleFactor |  1.1 |
+| &ensp; HaarCascadeMinNeighbors | 8 |
+| &ensp; Detect_HaarDetectionType | cv::CASCADE_DO_CANNY_PRUNING |
+| &ensp; HaarCascadeMinFaceWidth | 110 |
+| &ensp; HaarCascadeMinFaceHeight | 110 |
+| &ensp; HaarCascadeMaxFaceWidth | 0 |
+| &ensp; HaarCascadeMaxFaceHeight | 0 |
+| &ensp; Learning_eigenDistanceThreshold | 3220 (not used)|
 | **[YuNet Settings]** | **[Value]** |
-| Model | face_detection_yunet_2023mar.onnx |
-| score_threshold | 0.9 |
-| nms_threshold | 0.3 (default) |
-| top_k | 5000 (default) |
-| backend_id | DNN_BACKEND_DEFAULT (default) |
-| target_id | DNN_TARGET_CPU (default) |
+| &ensp; Model | face_detection_yunet_2023mar.onnx |
+| &ensp; score_threshold | 0.9 |
+| &ensp; nms_threshold | 0.3 (default) |
+| &ensp; top_k | 5000 (default) |
+| &ensp; backend_id | DNN_BACKEND_DEFAULT (default) |
+| &ensp; target_id | DNN_TARGET_CPU (default) |
 
 ## Log
 - 04.24.  Adaptive Screen Light, Slider completed. Changed the HaarCascade parameter (ScaleFaceor1.2->1.1, MinNeibors 10->8). 
