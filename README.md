@@ -5,7 +5,8 @@ Progress:  Apr 23.
 - OK:  Face Detection by HaarCascard
 - OK:  Face Detection by YuNet
 - OK:  Find center face
-- NOW: Adaptive Screen Light
+- OK:  Adaptive Screen Light
+- OK:  Multiple Camera/Hardware.  Laptop PC, Desktop PC.
 - == Not Yet ==
 - Window Controls
 - Ring Buffer
@@ -14,7 +15,7 @@ Progress:  Apr 23.
 - Save Function
 
 ## New Topics
-
+- Multiple Camera support, Camera is tested and code modified for laptop PC, desktop PC.
 - The project is converted to "C++ MFC App" to make easier the window controls.  It took 2-3 days...
 - It is showing two types of bounding boxes.  Showing HaarCascade and YuNet to compare two tech difference.
   - HaarCascade: Pink, dark pink.
@@ -43,8 +44,8 @@ Progress:  Apr 23.
 | HaarCascade Settings | Value |
 | :--- | :--- |
 | Model | haarcascade_frontalface_default.xml |
-| HaarCascadeScaleFactor |  1.2 |
-| HaarCascadeMinNeighbors | 10 |
+| HaarCascadeScaleFactor |  1.1 |
+| HaarCascadeMinNeighbors | 8 |
 | Detect_HaarDetectionType | cv::CASCADE_DO_CANNY_PRUNING |
 | HaarCascadeMinFaceWidth | 110 |
 | HaarCascadeMinFaceHeight | 110 |
@@ -62,7 +63,8 @@ Progress:  Apr 23.
 | target_id | DNN_TARGET_CPU (default) |
 
 ## Log
-- 04.23.  Implimenting Adaptive Screen Light, not perfect now.
+- 04.24.  Adaptive Screen Light, Slider completed. Changed the HaarCascade parameter (ScaleFaceor1.2->1.1, MinNeibors 10->8). 
+- 04.23.  Implimenting Adaptive Screen Light, not completed.
 - 04.22.  New version - remake the project with the new template "C++ MFC App"
 - 04.19.  Mirror Mode, it is better than the normal mode.
 
