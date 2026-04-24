@@ -25,9 +25,9 @@ Progress:  Apr 24.
 ## Settings
 | [Camera Settings] | [Value] |
 | :--- | :--- |
-|  Size (Width x Height) | 640 x 360 |
-| Color/Gray | Color |
-| Mirror | Yes |
+| &ensp; Size (Width x Height) | 640 x 360 |
+| &ensp; Color/Gray | Color |
+| &ensp; Mirror | Yes |
 | **[Programming Environment]** | **[Value]** |
 | IDE | Visual Studio 2022 Community Edition |
 | Project Template | MFC App |
