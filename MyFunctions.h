@@ -43,3 +43,7 @@ private:
 	double last_fps_;
 };
 
+// マイドキュメント内に保存用のディレクトリを作成し、
+// その日の日付に基づいたCSVファイルのフルパス (例: C:\Users\name\Documents\FacialAttendance2026\20260425.csv) を返します。
+std::wstring GetAttendanceCsvPath();
+

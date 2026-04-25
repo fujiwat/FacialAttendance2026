@@ -69,7 +69,11 @@ void CFacialAttendance2026Dlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_COMBO_CAMERA, m_comboCamera);
-	DDX_Control(pDX, IDC_SLIDER_SL,    m_sliderScreenLight);  // ← 追加
+	DDX_Control(pDX, IDC_SLIDER_SL,    m_sliderScreenLight);
+	DDX_Control(pDX, IDC_COMBO_NAME, m_comboName);
+	DDX_Control(pDX, IDC_EDIT_USER_ID, m_editID);
+	DDX_Control(pDX, IDC_EDIT_TIME, m_editTime);
+	DDX_Control(pDX, IDC_EDIT_COMMENT, m_editComment);
 }
 
 BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
@@ -86,6 +90,9 @@ BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
 	ON_BN_CLICKED(IDC_RADIO_SL_SLIDER, &CFacialAttendance2026Dlg::OnRadioSlSlider)
 	ON_BN_CLICKED(IDC_RADIO_SL_AUTO,   &CFacialAttendance2026Dlg::OnRadioSlAuto)
 	ON_BN_CLICKED(IDC_RADIO_SL_NONE,   &CFacialAttendance2026Dlg::OnRadioSlNone)
+	ON_BN_CLICKED(IDC_BUTTON_CONFIRM,  &CFacialAttendance2026Dlg::OnBnClickedButtonConfirm)
+	ON_COMMAND(ID_FILE_EXIT, &CFacialAttendance2026Dlg::OnFileExit)
+	ON_COMMAND(ID_FILE_SHOWATTENDANCELIST, &CFacialAttendance2026Dlg::OnFileShowattendancelist)
 END_MESSAGE_MAP()
 
 // --- ★ここから追加（Windowsからカメラ名を取得する関数） ---
@@ -254,10 +261,8 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 								cropRect = cv::Rect(0, (srcH - newH) / 2, srcW, newH);
 							}
 
-							// 万が一計算結果枠がはみ出しても、安全な範囲に強制的に収める
-							cropRect &= cv::Rect(0, 0, srcW, srcH);
+							cropRect &= cv::Rect(0, 0, srcW, srcH); // 安全な範囲に収める
 
-							// クロップしてリサイズ
 							if (cropRect.width > 0 && cropRect.height > 0) {
 								cv::Mat croppedFrame = frame(cropRect);
 								cv::resize(croppedFrame, resizedFrame, cv::Size(dstW, dstH));
@@ -268,28 +273,62 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 							resizedFrame = frame.clone();
 						}
 
-						// YuNet Facial Detection
+						// =======================================================
+						// 1. 表示用のモノクロキャンバスを作る
+						// =======================================================
+						cv::Mat displayFrame;
+						cv::cvtColor(resizedFrame, displayFrame, cv::COLOR_BGR2GRAY);
+						cv::cvtColor(displayFrame, displayFrame, cv::COLOR_GRAY2BGR);
+
+						// =======================================================
+						// 2. 顔検出処理 (元のカラー画像で行う)
+						// =======================================================
 						cv::Mat faces;
 						m_detector.DetectFacesYunet(resizedFrame, faces);
-						m_detector.DrawBoundingBoxesYunet(resizedFrame, faces);
+						m_detector.DrawBoundingBoxesYunet(displayFrame, faces); // 描画はモノクロの方へ
 
-						// Haar Cascade Facial Detection
 						std::vector<cv::Rect> haarRects;
 						m_detector.DetectFacesHaar(resizedFrame, haarRects);
-						m_detector.DrawBoundingBoxesHaar(resizedFrame, haarRects);
+						m_detector.DrawBoundingBoxesHaar(displayFrame, haarRects); // 描画はモノクロの方へ
 
-						// FPS calculation
-						double fps = m_fpsCounter.tick();
-						cv::putText(resizedFrame, cv::format("FPS: %.1f", fps), cv::Point(8, 24),
-							cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
-
-						// copy to shared variable
-						{
-							std::lock_guard<std::mutex> lock(m_frameMutex);
-							m_lastFrame = resizedFrame.clone(); 
+						// =======================================================
+						// 3. 中央に固定の黄色いガイド枠を描画
+						// =======================================================
+						int guideW = displayFrame.cols * 5 / 10;
+						int guideH = displayFrame.rows * 8 / 10;
+						int guideX = (displayFrame.cols - guideW) / 2;
+						int guideY = (displayFrame.rows - guideH) / 2;
+						
+						// 画面内に収まる場合のみ描画
+						if (guideX >= 0 && guideW > 0 && guideH > 0) {
+							cv::rectangle(displayFrame, cv::Rect(guideX, guideY, guideW, guideH), cv::Scalar(0, 180, 200), 2);
 						}
 
-						// Adaptive Screen Light の更新
+						// =======================================================
+						// 4. 顔が検出されなかった場合の警告状態をセット
+						// =======================================================
+						bool faceDetected = false;
+						if (faces.rows > 0 || !haarRects.empty()) {
+							faceDetected = true;
+						}
+
+						// ここでは画像に文字を書かず、UIスレッドに状態を伝えるだけ
+						m_bShowWarning.store(!faceDetected);
+
+						// =======================================================
+						// 5. FPS計算・画面更新・ScreenLight処理
+						// =======================================================
+						double fps = m_fpsCounter.tick();
+						// ★ OpenCVでのテキスト描画をやめ、UI側（GDI）へ値を渡す
+						m_currentFps.store(fps);
+
+						// 画面表示用の変数には、全てを描画し終わった displayFrame を渡す
+						{
+							std::lock_guard<std::mutex> lock(m_frameMutex);
+							m_lastFrame = displayFrame.clone(); 
+						}
+
+						// Adaptive Screen Light の更新(元のカラー映像を使用)
 						auto mode = m_screenLightMode.load();
 						if (mode != ScreenLightMode::None) {
 							try {
@@ -349,7 +388,7 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	_tcscpy_s(lf.lfFaceName, _T("Segoe UI"));
 
 	// --- 3. 「太字」フォントの実体化 ---
-//	lf.lfWeight = FW_HEAVY; // 極太
+	lf.lfWeight = FW_HEAVY; 
 	m_fontBold.DeleteObject();
 	m_fontBold.CreateFontIndirect(&lf);
 
@@ -358,15 +397,91 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	m_fontRegular.DeleteObject();
 	m_fontRegular.CreateFontIndirect(&lf);
 
+
 	// 5. 各ボタンに適用
 	// Photo OK ボタン（太字）
+	if (GetDlgItem(IDC_BUTTON_Camera_ON)) {
+		GetDlgItem(IDC_BUTTON_Camera_ON)->SetFont(&m_fontRegular);
+	}
 	if (GetDlgItem(IDC_BUTTON_Photo_OK)) {
 		GetDlgItem(IDC_BUTTON_Photo_OK)->SetFont(&m_fontBold);
+	}
+
+	if (GetDlgItem(IDC_BUTTON_CONFIRM)) {
+		GetDlgItem(IDC_BUTTON_CONFIRM)->SetFont(&m_fontBold);
 	}
 
 	if (GetDlgItem(IDCLOSE)) {
 		GetDlgItem(IDCLOSE)->SetFont(&m_fontRegular);
 	}
+
+	// ★ここから追加: 各入力フィールド（コントロール変数）に大きなフォント（m_fontRegular）を適用
+	m_comboName.SetFont(&m_fontRegular);
+	m_editID.SetFont(&m_fontRegular);
+	m_editTime.SetFont(&m_fontRegular);
+	m_editComment.SetFont(&m_fontRegular);
+
+	// ★ここから追加: 各ラベル（スタティックテキスト）に大きなフォントを適用
+	// ※ IDC_STATIC_NAME などの専用IDがない場合を考慮し、コントロールIDを指定して適用します。
+	// resource.h に振られているであろう一般的なラベルID（ここではGetDlgItemで取れるか確認します）
+	if (GetDlgItem(IDC_STATIC_NAME))    GetDlgItem(IDC_STATIC_NAME)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_ID))      GetDlgItem(IDC_STATIC_ID)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_TIME))    GetDlgItem(IDC_STATIC_TIME)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_COMMENT)) GetDlgItem(IDC_STATIC_COMMENT)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_ARROW1)) GetDlgItem(IDC_STATIC_ARROW1)->SetFont(&m_fontBold);
+	if (GetDlgItem(IDC_STATIC_ATTENDEES)) GetDlgItem(IDC_STATIC_ATTENDEES)->SetFont(&m_fontRegular);
+
+	// ★ここから追加: 入力フィールドの高さをUI_FIELD_HEIGHTピクセルに設定
+	m_comboName.SetItemHeight(-1, UI_FIELD_HEIGHT);
+	//int newHeight = UI_FIELD_HEIGHT;
+	//CRect rectID, rectTime;
+	//m_editID.GetWindowRect(&rectID);
+	//m_editID.SetWindowPos(nullptr, 0, 0, rectID.Width(), newHeight, SWP_NOMOVE | SWP_NOSIZE);
+	//m_editTime.GetWindowRect(&rectTime);
+	//m_editTime.SetWindowPos(nullptr, 0, 0, rectTime.Width(), newHeight, SWP_NOMOVE | SWP_NOSIZE);
+	// --- IDフィールドに固定幅フォントを設定 ---
+	GetFont()->GetLogFont(&lf); // 現在のダイアログのフォント設定をベースにする
+	wcscpy_s(lf.lfFaceName, _T("Tahoma"));
+	lf.lfHeight = UI_FIELD_HEIGHT;
+	m_fontFixed.CreateFontIndirect(&lf);         // フォントを作成
+
+	// ===== ID / Time / リストコントロール 用の等幅フォント設定 =====
+
+	GetFont()->GetLogFont(&lf); // 現在のダイアログのフォント設定をベースにする
+	wcscpy_s(lf.lfFaceName, _T("Tahoma"));
+
+	// --- 修正箇所: CreateFontIndirect の前に DeleteObject() を呼ぶ ---
+	
+	// リストコントロール用
+	m_fontFixedList.DeleteObject();          // <--- これを追加
+	m_fontFixedList.CreateFontIndirect(&lf); 
+
+	// ID / Time フィールド用
+	lf.lfHeight = UI_FIELD_HEIGHT;
+	m_fontFixed.DeleteObject();              // <--- これを追加
+	m_fontFixed.CreateFontIndirect(&lf);     
+
+	// フィールドへの適用
+	m_editID.SetFont(&m_fontFixed);          
+	m_editTime.SetFont(&m_fontFixed);        
+
+
+	// m_editID (ID)
+	m_editID.ModifyStyleEx(0, WS_EX_CLIENTEDGE, SWP_FRAMECHANGED);
+	m_editID.SetWindowPos(NULL, 0, 0, 0, 0,
+		SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+
+	// m_editComment (Comment)
+	m_editComment.ModifyStyleEx(0, WS_EX_CLIENTEDGE, SWP_FRAMECHANGED);
+	m_editComment.SetWindowPos(NULL, 0, 0, 0, 0,
+		SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+
+	// Name コンボボックスのテキスト部分にも念のため枠線スタイルを追加
+	m_comboName.ModifyStyleEx(0, WS_EX_CLIENTEDGE, SWP_FRAMECHANGED);
+	m_comboName.SetWindowPos(NULL, 0, 0, 0, 0,
+		SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+	// ------------
+
 	// --- 追加の初期化処理（ここまで） ---
 
 	// Adaptive Screen Light を有効化（カメラ起動と同時にスタート）
@@ -405,8 +520,60 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	CheckRadioButton(IDC_RADIO_SL_SLIDER, IDC_RADIO_SL_NONE, radioId);
 	m_screenLightMode.store(savedModeEnum);
 	// ────────────────────────────────────────────────────────
-    return TRUE;  // フォーカスをコントロールに設定した場合を除き、TRUE を返します。
+	m_editID.SetLimitText(UI_ID_TEXT_MAX_LENGTH);       // IDは8桁
+	m_editComment.SetLimitText(UI_COMMENT_TEXT_MAX_LENGTH); // コメントは200文字
+
+	// ★追加: Timeフィールドのロック強制解除と「数字:数字」のマスク設定
+	// （※ここにあった m_editTime.SetReadOnly と m_editTime.EnableMask は削除）
+	
+	// 「時:分」形式 (例: 14:30) に設定する
+   m_editTime.SetFormat(_T("HH:mm"));
+
+	// --- IDC_ATTENDEES_LIST の初期化 ---
+	CListCtrl* pListCtrl = (CListCtrl*)GetDlgItem(IDC_ATTENDEES_LIST);
+	if (pListCtrl != nullptr) {
+		// リスト用等幅フォント(デフォルトサイズ)を適用
+		pListCtrl->SetFont(&m_fontFixedList); 
+
+		pListCtrl->ModifyStyle(LVS_TYPEMASK, LVS_REPORT);
+		pListCtrl->SetExtendedStyle(pListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT);
+
+		// 列幅は画像に合わせて少し小さめに設定（例: 45, 125, 90）
+		pListCtrl->InsertColumn(0, _T("Time"), LVCFMT_LEFT, 45);
+		pListCtrl->InsertColumn(1, _T("Name"), LVCFMT_LEFT, 125);
+		pListCtrl->InsertColumn(2, _T("ID"),   LVCFMT_LEFT, 90);
+
+	}
+	// --- 追加ここまで ---
+
+    return TRUE;  // フォーカスをコントロールに設定した場合を除きTRUEを返します。
 }
+
+void CFacialAttendance2026Dlg::UpdateIdentificationFields(CString name)
+{
+	// 1. Nameの設定
+	if (name.CompareNoCase(_T("Unknown")) == 0) {
+		m_comboName.SetWindowText(_T("")); // Unknownならブランク
+	}
+	else {
+		m_comboName.SetWindowText(name);
+		// ドロップダウンリストに未登録なら追加
+		if (m_comboName.FindStringExact(-1, name) == CB_ERR) {
+			m_comboName.AddString(name);
+		}
+	}
+
+	// 2. IDは常にブランクで初期化
+	m_editID.SetWindowText(_T(""));
+
+	// 3. 認識した時刻を表示 (★秒を消して HH:mm にする)
+	CTime now = CTime::GetCurrentTime();
+	m_editTime.SetWindowText(now.Format(_T("%H:%M")));
+
+	// 4. Commentはクリア
+	m_editComment.SetWindowText(_T(""));
+}
+
 void CFacialAttendance2026Dlg::OnSysCommand(UINT nID, LPARAM lParam)
 {
     UINT cmd = nID & 0xFFF0;
@@ -464,7 +631,6 @@ HCURSOR CFacialAttendance2026Dlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-// --- ここから下をファイルの末尾に追加 ---
 
 void CFacialAttendance2026Dlg::OnTimer(UINT_PTR nIDEvent)
 {
@@ -480,7 +646,7 @@ void CFacialAttendance2026Dlg::UpdateFrame()
 	CWnd* pPreview = GetDlgItem(IDC_STATIC_PREVIEW);
 	if (!pPreview) return;
 
-	CClientDC dc(pPreview);  // ★GetDC() の代わりに CClientDC を使用
+	CClientDC dc(pPreview);
 	CRect rect;
 	pPreview->GetClientRect(&rect);
 
@@ -536,6 +702,78 @@ void CFacialAttendance2026Dlg::UpdateFrame()
 			// ★メモリDCに描画（画面には直接描画しない）
 			memDC.StretchBlt(drawX, drawY, drawW, drawH,
 				&imageDC, 0, 0, srcW, srcH, SRCCOPY);
+
+			// =======================================================
+			// 1. GDIを使った高画質フォントのFPS描画 (一番下)
+			// =======================================================
+			{
+				CString strFps;
+				strFps.Format(_T("FPS: %.1f"), m_currentFps.load());
+				
+				CFont* pOldFont = memDC.SelectObject(&m_fontBold);
+				
+				memDC.SetTextColor(RGB(255, 255, 0));
+				memDC.SetBkMode(TRANSPARENT);
+				memDC.TextOut(drawX + 10, drawY + 10, strFps);
+				
+				memDC.SelectObject(pOldFont);
+			}
+
+			// =======================================================
+			// 2. GDIを使った黄色いガイド枠の描画 (中間)
+			// =======================================================
+			{
+				int guideW = drawW * 5 / 10;
+				int guideH = drawH * 8 / 10;
+				int guideX = drawX + (drawW - guideW) / 2;
+				int guideY = drawY + (drawH - guideH) / 2;
+
+				CRect guideRect(guideX, guideY, guideX + guideW, guideY + guideH);
+
+				CPen yellowPen(PS_SOLID, 1, RGB(200, 180, 0));
+				CPen* pOldPen = memDC.SelectObject(&yellowPen);
+				CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
+
+				memDC.Rectangle(&guideRect);
+
+				memDC.SelectObject(pOldPen);
+				memDC.SelectObject(pOldBrush);
+			}
+
+			// =======================================================
+			// 3. 警告メッセージの描画 (最前面に表示するため一番最後に実行)
+			// =======================================================
+			if (m_bShowWarning.load()) {
+				CString warnMsg = _T("Don't turn your face.  Come to center.");
+
+				CFont* pOldFont = memDC.SelectObject(&m_fontBold);
+				
+				CRect textRect;
+				memDC.DrawText(warnMsg, &textRect, DT_CALCRECT);
+				
+				int tX = drawX + (drawW - textRect.Width()) / 2;
+				int tY = drawY + 40;
+				textRect.MoveToXY(tX, tY);
+
+				CRect bgRect = textRect;
+				bgRect.InflateRect(15, 10);
+				
+				memDC.FillSolidRect(&bgRect, RGB(0, 0, 0));
+				
+				CPen redPen(PS_SOLID, 2, RGB(255, 0, 0));
+				CPen* pOldPen = memDC.SelectObject(&redPen);
+				CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
+				memDC.Rectangle(&bgRect);
+
+				memDC.SetTextColor(RGB(255, 0, 0));
+				memDC.SetBkMode(TRANSPARENT);
+				memDC.DrawText(warnMsg, &textRect, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+
+				memDC.SelectObject(pOldPen);
+				memDC.SelectObject(pOldBrush);
+				memDC.SelectObject(pOldFont);
+			}
+			// =======================================================
 
 			imageDC.SelectObject(hOld);
 			DeleteObject(hBmp);
@@ -764,6 +1002,120 @@ void CFacialAttendance2026Dlg::OnRadioSlNone()
 	ApplyScreenLightMode(ScreenLightMode::None);
 }
 
+void CFacialAttendance2026Dlg::OnBnClickedButtonConfirm()
+{
+	CString strName, strID, strTime, strComment;
+
+	// 1. 各フィールドからテキストを取得
+	m_comboName.GetWindowText(strName);
+	m_editID.GetWindowText(strID);
+	m_editTime.GetWindowText(strTime); // ★追加
+	m_editComment.GetWindowText(strComment); // コメントも取得
+
+	// 左右の空白を除去
+	strName.Trim();
+	strID.Trim();
+	strTime.Trim();
+
+	// 2. 必須入力チェック
+	if (strName.IsEmpty())
+	{
+		AfxMessageBox(_T("Name is required."));
+		m_comboName.SetFocus();
+		return;
+	}
+
+	if (strID.IsEmpty())
+	{
+		AfxMessageBox(_T("ID is required."));
+		m_editID.SetFocus();
+		return;
+	}
+
+	// 24時間形式 (HH:mm) のバリデーション
+	strTime.Remove(_T('_')); // 入力途中のアンダースコアを取り除く
+	if (strTime.GetLength() != 5 || strTime[2] != _T(':')) {
+		AfxMessageBox(_T("Time must be in exactly HH:mm format."));
+		m_editTime.SetFocus();
+		return;
+	}
+
+	int h = _ttoi(strTime.Left(2));
+	int m = _ttoi(strTime.Right(2));
+	if (h < 0 || h >= 24 || m < 0 || m >= 60) {
+		AfxMessageBox(_T("Invalid time. Valid range is 00:00 to 23:59."));
+		m_editTime.SetFocus();
+		return;
+	}
+
+	// --- 3. リストコントロール (IDC_ATTENDEES_LIST) への追加 ---
+	CListCtrl* pListCtrl = (CListCtrl*)GetDlgItem(IDC_ATTENDEES_LIST);
+	if (pListCtrl != nullptr) {
+		// 先頭 (インデックス0) に新しい行を挿入する
+		int rowIndex = pListCtrl->InsertItem(0, strTime); // 0列目: Time
+		pListCtrl->SetItemText(rowIndex, 1, strName);     // 1列目: Name
+		pListCtrl->SetItemText(rowIndex, 2, strID);       // 2列目: ID
+	}
+
+	// --- 4. CSVファイルへの書き込み (追記モード) ---
+	SaveAttendanceToCsv(strTime, strName, strID, strComment);
+
+	// 5. 完了メッセージ（任意で入力欄のクリア等）
+	AfxMessageBox(_T("Attendance record saved successfully."));
+	
+	// 入力欄をクリアして次の人に備える処理を入れる場合はここに追加します
+	// m_comboName.SetWindowText(_T(""));
+	// m_editID.SetWindowText(_T(""));
+}
+
+// --- ★ここから移動: CSVファイルへの保存処理 ---
+void CFacialAttendance2026Dlg::SaveAttendanceToCsv(const CString& strTime, const CString& strName, const CString& strID, const CString& strComment)
+{
+	std::wstring csvPath = GetAttendanceCsvPath(); // MyFunctions.cpp で作成した関数
+	
+	// コメントのエスケープ処理
+	CString escapedComment = strComment;
+	escapedComment.Replace(_T("\""), _T("\"\""));
+	escapedComment = _T("\"") + escapedComment + _T("\"");
+
+	// ファイルが存在しない、もしくはサイズが0かどうかをチェックする
+	bool isNewFile = true;
+	FILE* checkFp = nullptr;
+	if (_wfopen_s(&checkFp, csvPath.c_str(), L"rb") == 0 && checkFp != nullptr) {
+		fseek(checkFp, 0, SEEK_END);
+		if (ftell(checkFp) > 0) {
+			isNewFile = false; // 既に中身があるなら新規ではない
+		}
+		fclose(checkFp);
+	}
+
+	// 追記モードのバイナリ + UTF-8 エンコーディング指定
+	FILE* fp = nullptr;
+	if (_wfopen_s(&fp, csvPath.c_str(), L"ab, ccs=UTF-8") == 0 && fp != nullptr) {
+		
+		// まったくの新規作成時の場合だけ、UTF-8のBOM (EF BB BF) を先頭に書き込む
+		if (isNewFile) {
+			unsigned char bom[] = { 0xEF, 0xBB, 0xBF };
+			fwrite(bom, 1, sizeof(bom), fp);
+
+			// ヘッダー（見出し行）を出力
+			fwprintf(fp, L"Time,Name,ID,Comment\n");
+		}
+
+		// CSV形式: Time, Name, ID, Comment
+		fwprintf(fp, L"%ls,%ls,%ls,%ls\n", 
+			(LPCTSTR)strTime, 
+			(LPCTSTR)strName, 
+			(LPCTSTR)strID, 
+			(LPCTSTR)escapedComment);
+			
+		fclose(fp);
+	}
+}
+// --- ★ここまで ---
+
+// --- ここから追加 ---
+
 void CFacialAttendance2026Dlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 {
 	if (pScrollBar && pScrollBar->GetSafeHwnd() == m_sliderScreenLight.GetSafeHwnd())
@@ -780,3 +1132,18 @@ void CFacialAttendance2026Dlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pS
 	}
 	CDialogEx::OnHScroll(nSBCode, nPos, pScrollBar);
 }
+
+
+void CFacialAttendance2026Dlg::OnFileExit()
+{
+	// 親クラスのものではなく、自クラス内でスレッド停止などのオーバーライド処理が書かれているOnCancel()を呼ぶ
+	OnCancel(); 
+}
+
+
+void CFacialAttendance2026Dlg::OnFileShowattendancelist()
+{
+	// TODO: Add your command handler code here
+}
+
+// --- ここまで追加 ---

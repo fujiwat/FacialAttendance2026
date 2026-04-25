@@ -29,3 +29,8 @@
 #	define YuNetModelPath "face_detection_yunet_2023mar.onnx"
 #pragma endregion
 
+#pragma region UI_Constants
+#	define UI_ID_TEXT_MAX_LENGTH 8
+#	define UI_COMMENT_TEXT_MAX_LENGTH 200
+#	define UI_FIELD_HEIGHT 32
+#pragma endregion

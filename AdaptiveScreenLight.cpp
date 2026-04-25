@@ -235,7 +235,7 @@ void AdaptiveScreenLight::DrawStatusText(HDC hdc, const RECT& clientRc, const ch
     HFONT hFont = CreateFontA(
         96, 0, 0, 0, FW_HEAVY, FALSE, FALSE, FALSE,
         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Tahoma");
     HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
 
     // 描画領域の計算とテキスト描画

@@ -7,6 +7,7 @@
 #define IDS_ABOUTBOX                    101
 #define IDD_FACIALATTENDANCE2026_DIALOG 102
 #define IDR_MAINFRAME                   128
+#define IDR_MENU1                       130
 #define IDC_STATIC_PREVIEW              1000
 #define IDC_BUTTON_Photo_OK             1001
 #define IDC_COMBO_CAMERA                1002
@@ -15,14 +16,31 @@
 #define IDC_RADIO_SL_NONE               1005
 #define IDC_SLIDER_SL                   1006
 #define IDC_STATIC_SL_VALUE             1007
+#define IDC_BUTTON_Camera_ON            1008
+#define IDC_LIST1                       1010
+#define IDC_ATTENDEES_LIST              1010
+#define IDC_STATIC_NAME                 1020
+#define IDC_COMBO_NAME                  1021
+#define IDC_STATIC_ID                   1022
+#define IDC_EDIT_USER_ID                1023
+#define IDC_STATIC_TIME                 1024
+#define IDC_EDIT_TIME                   1025
+#define IDC_STATIC_COMMENT              1026
+#define IDC_EDIT_COMMENT                1027
+#define IDC_STATIC_ARROW1               1029
+#define IDC_BUTTON_CONFIRM              1030
+#define IDC_STATIC_NAME2                1031
+#define IDC_STATIC_ATTENDEES            1032
+#define ID_FILE_SHOWATTENDANCELIST      32771
+#define ID_FILE_EXIT                    32772
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        130
-#define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1008
+#define _APS_NEXT_RESOURCE_VALUE        131
+#define _APS_NEXT_COMMAND_VALUE         32773
+#define _APS_NEXT_CONTROL_VALUE         1011
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

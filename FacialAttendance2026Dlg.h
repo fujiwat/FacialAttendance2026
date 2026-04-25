@@ -7,6 +7,7 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <afxcontrolbars.h> // ★追加: CMFCMaskedEdit を使用するため
 
 #define WM_UPDATE_SCREEN_LIGHT (WM_APP + 1)
 
@@ -53,12 +54,18 @@ protected:
     afx_msg void OnRadioSlAuto();
     afx_msg void OnRadioSlNone();
     afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
+    afx_msg void OnBnClickedButtonConfirm();
 
     DECLARE_MESSAGE_MAP()
 
 private:
     CComboBox    m_comboCamera;
     CSliderCtrl  m_sliderScreenLight;
+    CComboBox    m_comboName;
+    CEdit        m_editID;
+    // ★ CMFCMaskedEdit から CDateTimeCtrl に変更
+    CDateTimeCtrl m_editTime;
+    CEdit        m_editComment;
     int          m_currentCameraIdx;
     bool         m_shouldChangeCamera;
 
@@ -68,6 +75,8 @@ private:
     UINT_PTR     m_timerId;
     CFont        m_fontBold;
     CFont        m_fontRegular;
+    CFont        m_fontFixed;   // ★ 追加: 固定幅フォント用
+    CFont        m_fontFixedList;   // ★ 追加: 固定幅フォント用
     FpsCounter   m_fpsCounter;
 
     AdaptiveScreenLight            m_screenLight;
@@ -82,6 +91,10 @@ private:
     void    UpdateFrame0();
     void    UpdateFrame();
     HBITMAP CreateBitmapFromMat(const cv::Mat& mat);
+    void UpdateIdentificationFields(CString name);
+
+    // ★ 追加: CSVへの保存処理を抜き出した関数
+    void SaveAttendanceToCsv(const CString& strTime, const CString& strName, const CString& strID, const CString& strComment);
 
     // Screen Light モードをUIに反映し永続化する
     void    ApplyScreenLightMode(ScreenLightMode mode);
@@ -93,8 +106,12 @@ private:
     // ★追加: スレッド処理用の変数
     std::thread m_workerThread;
     std::atomic<bool> m_bStopThread{ false };
+    std::atomic<bool> m_bShowWarning{ false };
+    std::atomic<double> m_currentFps{ 0.0 }; // ← ★これを追加
 
 public:
     afx_msg void OnBnClickedClose();  // 既存のボタン用処理
     virtual void OnCancel();          // ← ★追加！ (×ボタンやESCキー用)
+    afx_msg void OnFileExit();
+    afx_msg void OnFileShowattendancelist();
 };

@@ -2,6 +2,7 @@
 #include "pch.h"
 #include <string>
 #include <vector>
+#include <ctime>
 
 // Windows 固有の設定（windows.h の前に置く）
 #define WIN32_LEAN_AND_MEAN
@@ -11,6 +12,7 @@
 
 #include <windows.h>
 #include <sal.h> // _In_, _Out_ 等のアノテーション
+#include <Shlobj.h>
 
 #include "OpenCV_without_warning.h"
 #include "FaceDetector.h"
@@ -140,4 +142,37 @@ std::string ToString(const std::wstring& wstr) {
     std::string result(size, 0);
     WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &result[0], size, NULL, NULL);
     return result;
+}
+
+std::wstring GetAttendanceCsvPath()
+{
+    // 1. まず日付文字列 (YYYYMMDD) を取得する
+    std::wstring dateStr = L"";
+    std::time_t t = std::time(nullptr);
+    struct tm tm_info;
+    if (localtime_s(&tm_info, &t) == 0)
+    {
+        wchar_t dateBuf[32];
+        wcsftime(dateBuf, sizeof(dateBuf) / sizeof(wchar_t), L"%Y%m%d", &tm_info);
+        dateStr = dateBuf;
+    }
+    // (万が一時計が取得できない等の超例外は、そのまま空文字にしておく)
+
+    // 2. マイドキュメントのパスを取得し、フルパスを組み立てる
+    wchar_t szPath[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_PERSONAL, NULL, 0, szPath)))
+    {
+        std::wstring folderPath = szPath;
+        folderPath += L"\\FacialAttendance2026";
+        
+        // フォルダが存在しないなら作成する
+        CreateDirectoryW(folderPath.c_str(), NULL);
+        
+        // C:\Users\name\Documents\FacialAttendance2026\YYYYMMDD.csv
+        return folderPath + L"\\" + dateStr + L".csv";
+    }
+
+    // 3. マイドキュメントのパス取得に失敗した場合のフォールバック
+    // カレントディレクトリに "attendanceYYYYMMDD.csv" として保存する
+    return L"attendance" + dateStr + L".csv";
 }
