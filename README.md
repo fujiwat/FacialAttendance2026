@@ -7,14 +7,15 @@ Progress:  Apr 24.
 - OK:  Find center face
 - OK:  Adaptive Screen Light
 - OK:  Multiple Camera/Hardware.  Laptop PC, Desktop PC.
+- OK:  Window Controls
 - == Not Yet ==
-- Window Controls
 - Ring Buffer
 - Feature Extraction
 - Person Identification (= Face Recognition)
 - Save Function
 
 ## New Topics
+- Yellow guide frame is added.  Caution message is added when there is no face.
 - Multiple Camera support, Camera is tested and code modified for laptop PC, desktop PC.
 - The project is converted to "C++ MFC App" to make easier the window controls.  It took 2-3 days...
 - It is showing two types of bounding boxes.  Showing HaarCascade and YuNet to compare two tech difference.
@@ -55,6 +56,7 @@ Progress:  Apr 24.
 | &ensp; target_id | DNN_TARGET_CPU (default) |
 
 ## Log
+- 04.25.  Change the view full color -> gray scale to enphasize the bounding box, guide frame.
 - 04.24.  Adaptive Screen Light, Slider completed. Changed the HaarCascade parameter (ScaleFaceor1.2->1.1, MinNeibors 10->8). 
 - 04.23.  Implimenting Adaptive Screen Light, not completed.
 - 04.22.  New version - remake the project with the new template "C++ MFC App"
