@@ -1,20 +1,21 @@
 # FacialAttendance2026
-<img width="886" height="503" alt="image" src="https://github.com/user-attachments/assets/d1f14509-7529-4c7a-a1b3-e1c7ea3b434f" />
+<img width="1852" height="1082" alt="image" src="https://github.com/user-attachments/assets/d318e16e-7f6f-4daf-be4f-ef732c29eeb4" />
 
-Progress:  Apr 23.
+## Progress:  Apr 25.
 - OK:  Face Detection by HaarCascard
 - OK:  Face Detection by YuNet
 - OK:  Find center face
 - OK:  Adaptive Screen Light
 - OK:  Multiple Camera/Hardware.  Laptop PC, Desktop PC.
+- OK:  Window Controls
 - == Not Yet ==
-- Window Controls
 - Ring Buffer
 - Feature Extraction
 - Person Identification (= Face Recognition)
 - Save Function
 
 ## New Topics
+- Yellow guide frame is added.  Caution message is added when there is no face.
 - Multiple Camera support, Camera is tested and code modified for laptop PC, desktop PC.
 - The project is converted to "C++ MFC App" to make easier the window controls.  It took 2-3 days...
 - It is showing two types of bounding boxes.  Showing HaarCascade and YuNet to compare two tech difference.
@@ -25,44 +26,37 @@ Progress:  Apr 23.
 ## Settings
 | Camera Settings | Value |
 | :--- | :--- |
-| Size (Width x Height) | 640 x 480 |
-| Color/Gray | Color |
-| Mirror | Yes |
-
-| Programming Environment | Value |
-| :--- | :--- |
-| IDE | Visual Studio 2022 Community Edition |
-| Project Template | MFC App |
-| Programming Language | C++ |
-| OpenCV Version | 4.10 |
-
-| Facial Attendance Technologies | Value |
-| :--- | :--- |
-| Facial Detection | Haar Cascade / YuNet |
-| Facial Recognition | SFace |
-
-| HaarCascade Settings | Value |
-| :--- | :--- |
-| Model | haarcascade_frontalface_default.xml |
-| HaarCascadeScaleFactor |  1.1 |
-| HaarCascadeMinNeighbors | 8 |
-| Detect_HaarDetectionType | cv::CASCADE_DO_CANNY_PRUNING |
-| HaarCascadeMinFaceWidth | 110 |
-| HaarCascadeMinFaceHeight | 110 |
-| HaarCascadeMaxFaceWidth | 0 |
-| HaarCascadeMaxFaceHeight | 0 |
-| Learning_eigenDistanceThreshold | 3220 (not used)|
-
-| YuNet Settings | Value |
-| :--- | :--- |
-| Model | face_detection_yunet_2023mar.onnx |
-| score_threshold | 0.9 |
-| nms_threshold | 0.3 (default) |
-| top_k | 5000 (default) |
-| backend_id | DNN_BACKEND_DEFAULT (default) |
-| target_id | DNN_TARGET_CPU (default) |
+| &ensp; Size (Width x Height) | 640 x 360 |
+| &ensp; Color/Gray | Color |
+| &ensp; Mirror | Yes |
+| **Programming Environment** | **Value** |
+| &ensp; IDE | Visual Studio 2022 Community Edition |
+| &ensp; Project Template | MFC App |
+| &ensp; Programming Language | C++ |
+| &ensp; OpenCV Version | 4.10 |
+| **Facial Attendance Technologies** | **Value** |
+| &ensp; Facial Detection | Haar Cascade / YuNet |
+| &ensp; Facial Recognition | SFace |
+| **HaarCascade Settings** | **Value** |
+| &ensp; Model | haarcascade_frontalface_default.xml |
+| &ensp; HaarCascadeScaleFactor |  1.1 |
+| &ensp; HaarCascadeMinNeighbors | 8 |
+| &ensp; Detect_HaarDetectionType | cv::CASCADE_DO_CANNY_PRUNING |
+| &ensp; HaarCascadeMinFaceWidth | 110 |
+| &ensp; HaarCascadeMinFaceHeight | 110 |
+| &ensp; HaarCascadeMaxFaceWidth | 0 |
+| &ensp; HaarCascadeMaxFaceHeight | 0 |
+| &ensp; Learning_eigenDistanceThreshold | 3220 (not used)|
+| **YuNet Settings** | **Value** |
+| &ensp; Model | face_detection_yunet_2023mar.onnx |
+| &ensp; score_threshold | 0.9 |
+| &ensp; nms_threshold | 0.3 (default) |
+| &ensp; top_k | 5000 (default) |
+| &ensp; backend_id | DNN_BACKEND_DEFAULT (default) |
+| &ensp; target_id | DNN_TARGET_CPU (default) |
 
 ## Log
+- 04.25.  Change the view full color -> gray scale to enphasize the bounding box, guide frame.
 - 04.24.  Adaptive Screen Light, Slider completed. Changed the HaarCascade parameter (ScaleFaceor1.2->1.1, MinNeibors 10->8). 
 - 04.23.  Implimenting Adaptive Screen Light, not completed.
 - 04.22.  New version - remake the project with the new template "C++ MFC App"
