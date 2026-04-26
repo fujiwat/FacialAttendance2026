@@ -1,15 +1,15 @@
 # FacialAttendance2026
 <img width="1852" height="1082" alt="image" src="https://github.com/user-attachments/assets/d318e16e-7f6f-4daf-be4f-ef732c29eeb4" />
 
-## Progress:  Apr 25.
+## Progress:  Apr 26.
 - OK:  Face Detection by HaarCascard
 - OK:  Face Detection by YuNet
 - OK:  Find center face
 - OK:  Adaptive Screen Light
 - OK:  Multiple Camera/Hardware.  Laptop PC, Desktop PC.
 - OK:  Window Controls
+- OK:  Ring Buffer
 - == Not Yet ==
-- Ring Buffer
 - Feature Extraction
 - Person Identification (= Face Recognition)
 - Save Function
@@ -54,6 +54,10 @@
 | &ensp; top_k | 5000 (default) |
 | &ensp; backend_id | DNN_BACKEND_DEFAULT (default) |
 | &ensp; target_id | DNN_TARGET_CPU (default) |
+
+## Issue
+1. There is a acase that the score of closing eyes was better than opening eyes.
+<img width="1185" height="693" alt="image" src="https://github.com/user-attachments/assets/663d3405-ecae-4a59-9d90-63f0d843c231" />
 
 ## Log
 - 04.25.  Change the view full color -> gray scale to enphasize the bounding box, guide frame.
