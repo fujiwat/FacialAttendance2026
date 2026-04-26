@@ -243,114 +243,23 @@ void CFacialAttendance2026Dlg::InitializeWorkerThread()
 					if (ret && !frame.empty()) {
 						cv::flip(frame, frame, 1);
 
-						// クロップ＆リサイズ等の処理
-						int srcW = frame.cols, srcH = frame.rows;
-						int dstW = m_detector.GetFrameWidth(), dstH = m_detector.GetFrameHeight();
-						cv::Mat resizedFrame;
+						cv::Mat resizedFrame, displayFrame;
+						ProcessCameraFrame(frame, resizedFrame, displayFrame);
 
-						if (dstW > 0 && dstH > 0 && srcW > 0 && srcH > 0) {
-							double srcAspect = (double)srcW / srcH;
-							double dstAspect = (double)dstW / dstH;
-							cv::Rect cropRect;
-							if (srcAspect > dstAspect) {
-								int newW = (int)(srcH * dstAspect);
-								cropRect = cv::Rect((srcW - newW) / 2, 0, newW, srcH);
-							}
-							else {
-								int newH = (int)(srcW / dstAspect);
-								cropRect = cv::Rect(0, (srcH - newH) / 2, srcW, newH);
-							}
-							cropRect &= cv::Rect(0, 0, srcW, srcH);
-							if (cropRect.width > 0 && cropRect.height > 0) {
-								cv::Mat croppedFrame = frame(cropRect);
-								cv::resize(croppedFrame, resizedFrame, cv::Size(dstW, dstH));
-							}
-							else {
-								resizedFrame = frame.clone();
-							}
-						}
-						else {
-							resizedFrame = frame.clone();
-						}
-
-						cv::Mat displayFrame;
-						cv::cvtColor(resizedFrame, displayFrame, cv::COLOR_BGR2GRAY);
-						cv::cvtColor(displayFrame, displayFrame, cv::COLOR_GRAY2BGR);
-
-						// =======================================================
-						// 2. 顔検出処理 (元のカラー画像で行う)
-						// =======================================================
-						int currentMode = m_faceDetectionMode;
-						std::vector<cv::Rect> haarRects;
 						cv::Mat faces;
-
-						// Haar (モード 0 または 2)
-						if (currentMode == 0 || currentMode == 2) {
-							// ★ 第一引数を resizedFrame から displayFrame に変更する！
-							m_detector.DetectFacesHaar(displayFrame, haarRects);
-							m_detector.DrawBoundingBoxesHaar(displayFrame, haarRects); // 描画はモノクロの方へ
-						}
-
-						// YuNet (モード 1 または 2)
-						if (currentMode == 1 || currentMode == 2) {
-							m_detector.DetectFacesYunet(resizedFrame, faces); // YuNetは元画像のままでOK
-							m_detector.DrawBoundingBoxesYunet(displayFrame, faces);
-						}
-
-						int guideW = displayFrame.cols * 5 / 10, guideH = displayFrame.rows * 8 / 10;
-						int guideX = (displayFrame.cols - guideW) / 2, guideY = (displayFrame.rows - guideH) / 2;
-						if (guideX >= 0 && guideW > 0 && guideH > 0) {
-							cv::rectangle(displayFrame, cv::Rect(guideX, guideY, guideW, guideH), cv::Scalar(0, 180, 200), 2);
-						}
-
-						bool faceDetected = false;
-						// Haarで検出されたかチェック
-						if ((currentMode == 0 || currentMode == 2) && !haarRects.empty()) {
-							faceDetected = true;
-						}
-						// YuNetで検出されたかチェック
-						if ((currentMode == 1 || currentMode == 2) && faces.rows > 0) {
-							faceDetected = true;
-						}
+						bool faceDetected = PerformFaceDetection(displayFrame, resizedFrame, faces);
 						m_bShowWarning.store(!faceDetected);
 
-						// ★ここで1フレームの全体の処理速度（FPS）を計算しています
 						double fps = m_fpsCounter.tick();
 						m_currentFps.store(fps);
-
-						// ★修正：全体のフレーム処理時間(ms)を計算して加算
-						if (fps > 0.0) {
-							m_totalFrames++;
-							double frameMs = 1000.0 / fps;
-
-							double expectedMs = m_totalLatencyMs.load();
-							while (!m_totalLatencyMs.compare_exchange_weak(expectedMs, expectedMs + frameMs)) {
-								// リトライ
-							}
-						}
+						UpdateFpsAndLatency(fps);
 
 						{
 							std::lock_guard<std::mutex> lock(m_frameMutex);
 							m_lastFrame = displayFrame.clone();
 						}
 
-						auto mode = m_screenLightMode.load();
-						if (mode != ScreenLightMode::None) {
-							try {
-								cv::Rect centerFaceRect;
-								if (faces.rows > 0) {
-									centerFaceRect = cv::Rect(
-										static_cast<int>(faces.at<float>(0, 0)),
-										static_cast<int>(faces.at<float>(0, 1)),
-										static_cast<int>(faces.at<float>(0, 2)),
-										static_cast<int>(faces.at<float>(0, 3))
-									);
-								}
-								float manualB = (mode == ScreenLightMode::Slider) ? (m_sliderValue / 100.0f) : -1.0f;
-								m_screenLight.Update(resizedFrame, centerFaceRect, manualB);
-							}
-							catch (...) {}
-						}
+						UpdateScreenLightUsingFaces(resizedFrame, faces);
 
 						PostMessage(WM_TIMER, 1, 0);
 						if (fps > 40.0) std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -447,8 +356,8 @@ void CFacialAttendance2026Dlg::InitializeListControl()
 		pListCtrl->ModifyStyle(LVS_TYPEMASK, LVS_REPORT);
 		pListCtrl->SetExtendedStyle(pListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT);
 
-		pListCtrl->InsertColumn(0, _T("Time"), LVCFMT_LEFT, 45);
-		pListCtrl->InsertColumn(1, _T("Name"), LVCFMT_LEFT, 125);
+		pListCtrl->InsertColumn(0, _T("TIME"), LVCFMT_LEFT, 45);
+		pListCtrl->InsertColumn(1, _T("NAME"), LVCFMT_LEFT, 125);
 		pListCtrl->InsertColumn(2, _T("ID"), LVCFMT_LEFT, 90);
 	}
 }
@@ -585,6 +494,7 @@ void CFacialAttendance2026Dlg::OnTimer(UINT_PTR nIDEvent)
 	}
 	CDialogEx::OnTimer(nIDEvent);
 }
+
 void CFacialAttendance2026Dlg::UpdateFrame()
 {
 	std::lock_guard<std::mutex> lock(m_frameMutex);
@@ -596,7 +506,6 @@ void CFacialAttendance2026Dlg::UpdateFrame()
 	CRect rect;
 	pPreview->GetClientRect(&rect);
 
-	// ★ダブルバッファリング用のメモリDCとビットマップを作成
 	CDC memDC;
 	memDC.CreateCompatibleDC(&dc);
 	CBitmap backBuffer;
@@ -604,7 +513,6 @@ void CFacialAttendance2026Dlg::UpdateFrame()
 	CBitmap* pOldBitmap = memDC.SelectObject(&backBuffer);
 
 	if (m_lastFrame.empty()) {
-		// 画面を黒い長方形ではなく、ダイアログの背景色で塗りつぶす
 		memDC.FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
 	}
 	else {
@@ -614,195 +522,29 @@ void CFacialAttendance2026Dlg::UpdateFrame()
 			imageDC.CreateCompatibleDC(&memDC);
 			HBITMAP hOld = (HBITMAP)imageDC.SelectObject(hBmp);
 
-			// ★ここを追加：画像を貼り付ける前に、背景をダイアログ色で塗っておく
 			memDC.FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
 
-			int srcW = m_lastFrame.cols;
-			int srcH = m_lastFrame.rows;
-			int dstW = rect.Width();
-			int dstH = rect.Height();
+			int drawX = 0, drawW = rect.Width(), drawH = rect.Height();
+			CalculateDrawArea(m_lastFrame.cols, m_lastFrame.rows, rect.Width(), rect.Height(), drawX, drawW, drawH);
 
-			// 画像と枠の比率を計算
-			double srcAspect = (double)srcW / srcH;
-			double dstAspect = (double)dstW / dstH;
-
-			int drawW = dstW;
-			int drawH = dstH;
-			int drawX = 0;
-			int drawY = 0;  // 上部固定
-
-			// 枠に合わせて最適なサイズと中央の描画位置を決定
-			if (srcAspect > dstAspect) {
-				// 画像の方が横長（上下に余白）
-				drawH = (int)(dstW / srcAspect);
-			}
-			else {
-				// 画像の方が縦長（左右に余白）
-				drawW = (int)(dstH * srcAspect);
-				drawX = (dstW - drawW) / 2;  // 左右は中央
-			}
-
-			// 縮小・拡大時の画質を少し良くする設定
 			memDC.SetStretchBltMode(COLORONCOLOR);
+			memDC.StretchBlt(drawX, 0, drawW, drawH, &imageDC, 0, 0, m_lastFrame.cols, m_lastFrame.rows, SRCCOPY);
 
-			// ★メモリDCに描画（画面には直接描画しない）
-			memDC.StretchBlt(drawX, drawY, drawW, drawH,
-				&imageDC, 0, 0, srcW, srcH, SRCCOPY);
-
-			// =======================================================
-			// 1. GDIを使った高画質フォントのFPS描画 (一番下)
-			// =======================================================
-			{
-				CString strFps;
-				strFps.Format(_T("FPS: %.1f"), m_currentFps.load());
-				
-				CFont* pOldFont = memDC.SelectObject(&m_fontBold);
-				
-				memDC.SetTextColor(RGB(255, 255, 0));
-				memDC.SetBkMode(TRANSPARENT);
-				memDC.TextOut(drawX + 10, drawY + 10, strFps);
-				
-				memDC.SelectObject(pOldFont);
-			}
-
-			// =======================================================
-			// 2. GDIを使った黄色いガイド枠の描画 (中間)
-			// =======================================================
-			{
-				int guideW = drawW * 5 / 10;
-				int guideH = drawH * 8 / 10;
-				int guideX = drawX + (drawW - guideW) / 2;
-				int guideY = drawY + (drawH - guideH) / 2;
-
-				CRect guideRect(guideX, guideY, guideX + guideW, guideY + guideH);
-
-				CPen yellowPen(PS_SOLID, 1, RGB(200, 180, 0));
-				CPen* pOldPen = memDC.SelectObject(&yellowPen);
-				CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
-
-				memDC.Rectangle(&guideRect);
-
-				memDC.SelectObject(pOldPen);
-				memDC.SelectObject(pOldBrush);
-			}
-
-			// =======================================================
-			// 3. 警告メッセージの描画 (最前面に表示するため一番最後に実行)
-			// =======================================================
+			DrawFpsText(memDC, drawX, 0);
+			DrawGuideFrame(memDC, drawX, 0, drawW, drawH);
 			if (m_bShowWarning.load()) {
-				CString warnMsg = _T("Don't turn your face.  Come to center.");
-
-				CFont* pOldFont = memDC.SelectObject(&m_fontBold);
-				
-				CRect textRect;
-				memDC.DrawText(warnMsg, &textRect, DT_CALCRECT);
-				
-				int tX = drawX + (drawW - textRect.Width()) / 2;
-				int tY = drawY + 40;
-				textRect.MoveToXY(tX, tY);
-
-				CRect bgRect = textRect;
-				bgRect.InflateRect(15, 10);
-				
-				memDC.FillSolidRect(&bgRect, RGB(0, 0, 0));
-				
-				CPen redPen(PS_SOLID, 2, RGB(255, 0, 0));
-				CPen* pOldPen = memDC.SelectObject(&redPen);
-				CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
-				memDC.Rectangle(&bgRect);
-
-				memDC.SetTextColor(RGB(255, 0, 0));
-				memDC.SetBkMode(TRANSPARENT);
-				memDC.DrawText(warnMsg, &textRect, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
-
-				memDC.SelectObject(pOldPen);
-				memDC.SelectObject(pOldBrush);
-				memDC.SelectObject(pOldFont);
+				DrawWarningMessage(memDC, drawX, 0, drawW);
 			}
-			// =======================================================
 
 			imageDC.SelectObject(hOld);
 			DeleteObject(hBmp);
 		}
 	}
 
-	// ★完成したバックバッファを一気に画面に転送（これでちらつき解消！）
 	dc.BitBlt(0, 0, rect.Width(), rect.Height(), &memDC, 0, 0, SRCCOPY);
-
 	memDC.SelectObject(pOldBitmap);
-	// ★ReleaseDC は不要（CClientDC がデストラクタで自動的に解放）
 }
 
-void CFacialAttendance2026Dlg::UpdateFrame0()
-{
-	std::lock_guard<std::mutex> lock(m_frameMutex);
-
-	CWnd* pPreview = GetDlgItem(IDC_STATIC_PREVIEW);
-	if (!pPreview) return;
-
-	CDC* pDC = pPreview->GetDC();
-	if (!pDC) return;
-
-	CRect rect;
-	pPreview->GetClientRect(&rect);
-
-	if (m_lastFrame.empty()) {
-		// 画面を黒い長方形ではなく、ダイアログの背景色で塗りつぶす
-		pDC->FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
-	}
-	else {
-		HBITMAP hBmp = CreateBitmapFromMat(m_lastFrame);
-		if (hBmp) {
-			CDC memDC;
-			memDC.CreateCompatibleDC(pDC);
-			HBITMAP hOld = (HBITMAP)memDC.SelectObject(hBmp);
-
-			// --- ★ここから：縦横比を計算して正しく描画する処理 ---
-
-			// 背景を一旦黒でクリア（黒帯になる部分）
-			pDC->FillSolidRect(&rect, RGB(0, 0, 0));
-
-			int srcW = m_lastFrame.cols;
-			int srcH = m_lastFrame.rows;
-			int dstW = rect.Width();
-			int dstH = rect.Height();
-
-			// 画像と枠の比率を計算
-			double srcAspect = (double)srcW / srcH;
-			double dstAspect = (double)dstW / dstH;
-
-			int drawW = dstW;
-			int drawH = dstH;
-			int drawX = 0;
-			int drawY = 0;
-
-			// 枠に合わせて最適なサイズと中央の描画位置を決定
-			if (srcAspect > dstAspect) {
-				// 画像の方が横長（上下に黒帯）
-				drawH = (int)(dstW / srcAspect);
-				drawY = (dstH - drawH) / 2;
-			}
-			else {
-				// 画像の方が縦長（左右に黒帯）
-				drawW = (int)(dstH * srcAspect);
-				drawX = (dstW - drawW) / 2;
-			}
-
-			// 縮小・拡大時の画質を少し良くする設定
-			pDC->SetStretchBltMode(COLORONCOLOR);
-
-			// 計算した位置・サイズで描画（比率が完璧に維持されます）
-			pDC->StretchBlt(drawX, drawY, drawW, drawH,
-				&memDC, 0, 0, srcW, srcH, SRCCOPY);
-
-			// --- ★ここまで ---
-
-			memDC.SelectObject(hOld);
-			DeleteObject(hBmp);
-		}
-	}
-	pPreview->ReleaseDC(pDC);
-}
 
 HBITMAP CFacialAttendance2026Dlg::CreateBitmapFromMat(const cv::Mat& mat)
 {
@@ -843,7 +585,6 @@ HBITMAP CFacialAttendance2026Dlg::CreateBitmapFromMat(const cv::Mat& mat)
 	return hBmp;
 }
 
-// ★この関数がまるごと存在するか確認！
 void CFacialAttendance2026Dlg::OnCbnSelchangeComboCamera()
 {
 	int sel = m_comboCamera.GetCurSel();
@@ -893,10 +634,189 @@ LRESULT CFacialAttendance2026Dlg::OnInitScreenLight(WPARAM, LPARAM)
 	return 0;
 }
 
+
+
+// ---------------------------------------------------------------------------
+// ヘルパー
+// ---------------------------------------------------------------------------
+
+void CFacialAttendance2026Dlg::ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& outResizedFrame, cv::Mat& outDisplayFrame)
+{
+	int srcW = inOutFrame.cols;
+	int srcH = inOutFrame.rows;
+	int dstW = m_detector.GetFrameWidth();
+	int dstH = m_detector.GetFrameHeight();
+
+	if (dstW > 0 && dstH > 0 && srcW > 0 && srcH > 0) {
+		double srcAspect = (double)srcW / srcH;
+		double dstAspect = (double)dstW / dstH;
+		cv::Rect cropRect;
+
+		if (srcAspect > dstAspect) {
+			int newW = (int)(srcH * dstAspect);
+			cropRect = cv::Rect((srcW - newW) / 2, 0, newW, srcH);
+		}
+		else {
+			int newH = (int)(srcW / dstAspect);
+			cropRect = cv::Rect(0, (srcH - newH) / 2, srcW, newH);
+		}
+
+		cropRect &= cv::Rect(0, 0, srcW, srcH);
+		if (cropRect.width > 0 && cropRect.height > 0) {
+			cv::Mat croppedFrame = inOutFrame(cropRect);
+			cv::resize(croppedFrame, outResizedFrame, cv::Size(dstW, dstH));
+		}
+		else {
+			outResizedFrame = inOutFrame.clone();
+		}
+	}
+	else {
+		outResizedFrame = inOutFrame.clone();
+	}
+
+	cv::cvtColor(outResizedFrame, outDisplayFrame, cv::COLOR_BGR2GRAY);
+	cv::cvtColor(outDisplayFrame, outDisplayFrame, cv::COLOR_GRAY2BGR);
+}
+
+bool CFacialAttendance2026Dlg::PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces)
+{
+	int currentMode = m_faceDetectionMode;
+	std::vector<cv::Rect> haarRects;
+	bool faceDetected = false;
+
+	// Haar (モード 0 または 2)
+	if (currentMode == 0 || currentMode == 2) {
+		m_detector.DetectFacesHaar(displayFrame, haarRects);
+		m_detector.DrawBoundingBoxesHaar(displayFrame, haarRects);
+		if (!haarRects.empty()) faceDetected = true;
+	}
+
+	// YuNet (モード 1 または 2)
+	if (currentMode == 1 || currentMode == 2) {
+		m_detector.DetectFacesYunet(resizedFrame, outFaces);
+		m_detector.DrawBoundingBoxesYunet(displayFrame, outFaces);
+		if (outFaces.rows > 0) faceDetected = true;
+	}
+
+	int guideW = displayFrame.cols * 5 / 10;
+	int guideH = displayFrame.rows * 8 / 10;
+	int guideX = (displayFrame.cols - guideW) / 2;
+	int guideY = (displayFrame.rows - guideH) / 2;
+	if (guideX >= 0 && guideW > 0 && guideH > 0) {
+		cv::rectangle(displayFrame, cv::Rect(guideX, guideY, guideW, guideH), cv::Scalar(0, 180, 200), 2);
+	}
+
+	return faceDetected;
+}
+
+void CFacialAttendance2026Dlg::UpdateFpsAndLatency(double fps)
+{
+	if (fps > 0.0) {
+		m_totalFrames++;
+		double frameMs = 1000.0 / fps;
+		double expectedMs = m_totalLatencyMs.load();
+		while (!m_totalLatencyMs.compare_exchange_weak(expectedMs, expectedMs + frameMs)) {
+			// リトライ
+		}
+	}
+}
+
+void CFacialAttendance2026Dlg::UpdateScreenLightUsingFaces(const cv::Mat& resizedFrame, const cv::Mat& faces)
+{
+	auto mode = m_screenLightMode.load();
+	if (mode != ScreenLightMode::None) {
+		try {
+			cv::Rect centerFaceRect;
+			if (faces.rows > 0) {
+				centerFaceRect = cv::Rect(
+					static_cast<int>(faces.at<float>(0, 0)),
+					static_cast<int>(faces.at<float>(0, 1)),
+					static_cast<int>(faces.at<float>(0, 2)),
+					static_cast<int>(faces.at<float>(0, 3))
+				);
+			}
+			float manualB = (mode == ScreenLightMode::Slider) ? (m_sliderValue / 100.0f) : -1.0f;
+			m_screenLight.Update(resizedFrame, centerFaceRect, manualB);
+		}
+		catch (...) {}
+	}
+}
+
+void CFacialAttendance2026Dlg::CalculateDrawArea(int srcW, int srcH, int dstW, int dstH, int& drawX, int& drawW, int& drawH) const
+{
+	double srcAspect = (double)srcW / (double)srcH;
+	double dstAspect = (double)dstW / (double)dstH;
+	if (srcAspect > dstAspect) {
+		drawH = (int)(dstW / srcAspect);
+	}
+	else {
+		drawW = (int)(dstH * srcAspect);
+		drawX = (dstW - drawW) / 2;
+	}
+}
+
+void CFacialAttendance2026Dlg::DrawFpsText(CDC& memDC, int x, int y)
+{
+	CString strFps;
+	strFps.Format(_T("FPS: %.1f"), m_currentFps.load());
+	CFont* pOldFont = memDC.SelectObject(&m_fontBold);
+	memDC.SetTextColor(RGB(255, 255, 0));
+	memDC.SetBkMode(TRANSPARENT);
+	memDC.TextOut(x + 10, y + 10, strFps);
+	memDC.SelectObject(pOldFont);
+}
+
+void CFacialAttendance2026Dlg::DrawGuideFrame(CDC& memDC, int x, int y, int w, int h)
+{
+	int guideW = w * 5 / 10;
+	int guideH = h * 8 / 10;
+	int guideX = x + (w - guideW) / 2;
+	int guideY = y + (h - guideH) / 2;
+
+	CRect guideRect(guideX, guideY, guideX + guideW, guideY + guideH);
+	CPen yellowPen(PS_SOLID, 1, RGB(200, 180, 0));
+	CPen* pOldPen = memDC.SelectObject(&yellowPen);
+	CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
+
+	memDC.Rectangle(&guideRect);
+	memDC.SelectObject(pOldPen);
+	memDC.SelectObject(pOldBrush);
+}
+
+void CFacialAttendance2026Dlg::DrawWarningMessage(CDC& memDC, int x, int y, int w)
+{
+	CString warnMsg = _T("Don't turn your face.  Come to center.");
+	CFont* pOldFont = memDC.SelectObject(&m_fontBold);
+
+	CRect textRect;
+	memDC.DrawText(warnMsg, &textRect, DT_CALCRECT);
+
+	int tX = x + (w - textRect.Width()) / 2;
+	int tY = y + 40;
+	textRect.MoveToXY(tX, tY);
+
+	CRect bgRect = textRect;
+	bgRect.InflateRect(15, 10);
+	memDC.FillSolidRect(&bgRect, RGB(0, 0, 0));
+
+	CPen redPen(PS_SOLID, 2, RGB(255, 0, 0));
+	CPen* pOldPen = memDC.SelectObject(&redPen);
+	CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
+
+	memDC.Rectangle(&bgRect);
+	memDC.SetTextColor(RGB(255, 0, 0));
+	memDC.SetBkMode(TRANSPARENT);
+	memDC.DrawText(warnMsg, &textRect, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+
+	memDC.SelectObject(pOldPen);
+	memDC.SelectObject(pOldBrush);
+	memDC.SelectObject(pOldFont);
+}
+
 // ---------------------------------------------------------------------------
 // Screen Light ヘルパー
 // ---------------------------------------------------------------------------
-/*static*/ COLORREF CFacialAttendance2026Dlg::SliderToColor(int value)
+COLORREF CFacialAttendance2026Dlg::SliderToColor(int value)
 {
 	BYTE v = static_cast<BYTE>(value * 255 / 100);
 	return RGB(v, v, v);

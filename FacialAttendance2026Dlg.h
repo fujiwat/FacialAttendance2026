@@ -90,7 +90,6 @@ private:
     int    m_bmpWidth;
     int    m_bmpHeight;
 
-    void    UpdateFrame0();
     void    UpdateFrame();
     HBITMAP CreateBitmapFromMat(const cv::Mat& mat);
     void UpdateIdentificationFields(CString name);
@@ -123,6 +122,18 @@ private:
     // ★追加: 評価(Evaluation)用データの収集用変数
     std::atomic<uint64_t> m_totalFrames{ 0 };
     std::atomic<double>   m_totalLatencyMs{ 0.0 };
+
+    // === Worker Thread 抽出用ヘルパー関数 ===
+    void ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& outResizedFrame, cv::Mat& outDisplayFrame);
+    bool PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces);
+    void UpdateFpsAndLatency(double fps);
+    void UpdateScreenLightUsingFaces(const cv::Mat& resizedFrame, const cv::Mat& faces);
+
+    // === UpdateFrame 描画抽出用ヘルパー関数 ===
+    void CalculateDrawArea(int srcW, int srcH, int dstW, int dstH, int& drawX, int& drawW, int& drawH) const;
+    void DrawFpsText(CDC& memDC, int x, int y);
+    void DrawGuideFrame(CDC& memDC, int x, int y, int w, int h);
+    void DrawWarningMessage(CDC& memDC, int x, int y, int w);
 
 public:
     afx_msg void OnBnClickedClose();  // 既存のボタン用処理
