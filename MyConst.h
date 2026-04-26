@@ -35,6 +35,12 @@
 #	define UI_FIELD_HEIGHT 32
 #pragma endregion
 
+
+#pragma region FACE_RECOGNITION
+	const int MAX_FACE_RING_BUFFER = 300;	// 顔写真のリングバッファの最大保存数 (1フレーム1枚として約10秒分)
+	const int FACE_NORM_SIZE = 112;			// 顔の正規化サイズ (SFace, Eigenfaces, LBPH 共通)
+#pragma endregion
+
 #pragma region Evaluation_Constants
 #	define wEVALUATION_FOLDER_NAME L"Evaluation"
 #	define wFACE_DETECTION_LATENCY_FOLDER_NAME L"FaceDetectionLatency"
@@ -44,3 +50,4 @@
 #	define REG_SECTION_SETTINGS _T("Settings")
 #	define REG_KEY_FACE_DETECTION_MODE _T("FaceDetectionMode")
 #pragma endregion
+

@@ -19,6 +19,10 @@
 #define IDC_BUTTON_CAMERA_ON            1008
 #define IDC_LIST1                       1010
 #define IDC_ATTENDEES_LIST              1010
+#define IDC_STATIC_FACE                 1011
+#define IDC_STATIC_FACE_WORST           1012
+#define IDC_STATIC_FACE_SCORE           1013
+#define IDC_STATIC_FACE_WORST_SCORE     1014
 #define IDC_STATIC_NAME                 1020
 #define IDC_COMBO_NAME                  1021
 #define IDC_STATIC_ID                   1022
@@ -38,14 +42,19 @@
 #define ID_FACEDETECTION_YUNET          32775
 #define ID_FACEDETECTION_BOTH           32776
 #define ID_FACEDETECTION_SHOWFOLDER     32777
+#define ID_EVALUATION_FACEIDENTIFICATION 32778
+#define ID_FACEIDENTIFICATION_EIGENFACES 32779
+#define ID_FACEIDENTIFICATION_LBPH      32780
+#define ID_FACEIDENTIFICATION_SFACE     32781
+#define ID_FACEIDENTIFICATION_ALL       32782
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        131
-#define _APS_NEXT_COMMAND_VALUE         32778
-#define _APS_NEXT_CONTROL_VALUE         1011
+#define _APS_NEXT_COMMAND_VALUE         32783
+#define _APS_NEXT_CONTROL_VALUE         1015
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

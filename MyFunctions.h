@@ -9,6 +9,13 @@ std::wstring ToWString(const std::string& str);	// std::string ("abc") -> std::w
 std::string ToString(const std::wstring& wstr);	// std::wstring (L"abc") -> std::string ("abc")
 #pragma endregion
 
+#pragma region Application_Constants
+// exeファイル名から取得した名前を保持するグローバル変数
+extern std::wstring g_wAppNameShort;
+extern std::string  g_appNameShort;
+extern std::wstring g_wAppNameLong;  // 必要に応じてLong版も
+extern std::string  g_appNameLong;
+#pragma endregion
 
 
 /// ワイド文字列フォーマットを受け取る MessageBox ラッパー

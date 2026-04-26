@@ -23,6 +23,8 @@ public:
 // Overrides
 public:
 	virtual BOOL InitInstance();
+private:
+	void InitializeApplicationName();
 
 // Implementation
 

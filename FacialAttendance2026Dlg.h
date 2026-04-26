@@ -8,6 +8,8 @@
 #include <mutex>
 #include <thread>
 #include <afxcontrolbars.h> // ★追加: CMFCMaskedEdit を使用するため
+#include <deque>   // dequeを使うために追加
+#include <condition_variable>                
 
 #define WM_UPDATE_SCREEN_LIGHT (WM_APP + 1)
 
@@ -17,6 +19,12 @@ enum class ScreenLightMode
     None   = 0,  // 無効
     Slider = 1,  // スライダー値で固定輝度
     Auto   = 2,  // Adaptive（顔検出連動）
+};
+
+// --- ダイアログクラスの宣言の前に構造体を定義 ---
+struct FaceBufferItem {
+    cv::Mat face112;      // 112x112に正規化されたカラー顔画像
+    double sharpness = 0.0; // ★追加: 「= 0.0;」をつけて初期化しておく
 };
 
 // CFacialAttendance2026Dlg dialog
@@ -81,6 +89,15 @@ private:
     CFont        m_fontFixedList;   // ★ 追加: 固定幅フォント用
     FpsCounter   m_fpsCounter;
 
+    std::deque<FaceBufferItem> m_faceRingBuffer; // リングバッファ
+    std::mutex m_bufferMutex;                    // バッファ操作用の排他制御
+    std::atomic<bool> m_bCapturing;
+    std::atomic<int>  m_discardFrames{ 0 }; // ★追加: 捨てるフレーム数
+
+    std::mutex m_pauseMutex;                     // 待機用のミューテックス
+    std::condition_variable m_pauseCV;           // スレッドを寝かせる/起こすための条件変数
+    // --- ★ここまで追加 ---
+
     AdaptiveScreenLight            m_screenLight;
     std::atomic<ScreenLightMode>   m_screenLightMode;
     int                            m_sliderValue; // 0-100
@@ -125,7 +142,9 @@ private:
 
     // === Worker Thread 抽出用ヘルパー関数 ===
     void ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& outResizedFrame, cv::Mat& outDisplayFrame);
-    bool PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces);
+    
+    // ★ 変更後: 第4引数に centerFaceRect を追加し、そこに中心の顔枠を返します
+    bool PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces, cv::Rect& centerFaceRect);
     void UpdateFpsAndLatency(double fps);
     void UpdateScreenLightUsingFaces(const cv::Mat& resizedFrame, const cv::Mat& faces);
 
@@ -147,4 +166,9 @@ public:
     afx_msg void OnUpdateFacedetectionYunet(CCmdUI* pCmdUI);
     afx_msg void OnUpdateFacedetectionBoth(CCmdUI* pCmdUI);
     afx_msg void OnFacedetectionShowfolder();
+    afx_msg void OnBnClickedButtonPhotoOk();
+    afx_msg void OnBnClickedButtonCameraOn();   
+
+    double CalculateSharpness(const cv::Mat& img);                   // 鮮明度を計算する関数
+    void DrawMatToStatic(int nID, const cv::Mat& mat);               // 任意のStaticコントロールにcv::Matを描画する共通関数
 };

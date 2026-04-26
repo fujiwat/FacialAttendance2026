@@ -19,6 +19,13 @@
 #include "MyFunctions.h"
 #include "MyConst.h"
 
+// Defining the variables to allocate memory.
+// They naturally start as empty strings ("") and will be populated in InitInstance().
+std::wstring g_wAppNameShort;
+std::string  g_appNameShort;
+std::wstring g_wAppNameLong;
+std::string  g_appNameLong;
+
 // -----------------------------
 // Helpers (String Formatting)
 // -----------------------------
