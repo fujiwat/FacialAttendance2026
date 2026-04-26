@@ -34,3 +34,13 @@
 #	define UI_COMMENT_TEXT_MAX_LENGTH 200
 #	define UI_FIELD_HEIGHT 32
 #pragma endregion
+
+#pragma region Evaluation_Constants
+#	define wEVALUATION_FOLDER_NAME L"Evaluation"
+#	define wFACE_DETECTION_LATENCY_FOLDER_NAME L"FaceDetectionLatency"
+#pragma endregion
+
+#pragma region Registry_Constants
+#	define REG_SECTION_SETTINGS _T("Settings")
+#	define REG_KEY_FACE_DETECTION_MODE _T("FaceDetectionMode")
+#pragma endregion

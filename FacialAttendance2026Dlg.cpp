@@ -93,6 +93,14 @@ BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_CONFIRM,  &CFacialAttendance2026Dlg::OnBnClickedButtonConfirm)
 	ON_COMMAND(ID_FILE_EXIT, &CFacialAttendance2026Dlg::OnFileExit)
 	ON_COMMAND(ID_FILE_SHOWATTENDANCELIST, &CFacialAttendance2026Dlg::OnFileShowattendancelist)
+	ON_COMMAND(ID_FACEDETECTION_HAARCASCADES, &CFacialAttendance2026Dlg::OnFacedetectionHaarcascades)
+	ON_COMMAND(ID_FACEDETECTION_YUNET, &CFacialAttendance2026Dlg::OnFacedetectionYunet)
+	ON_COMMAND(ID_FACEDETECTION_BOTH, &CFacialAttendance2026Dlg::OnFacedetectionBoth)
+	ON_UPDATE_COMMAND_UI(ID_FACEDETECTION_HAARCASCADES, &CFacialAttendance2026Dlg::OnUpdateFacedetectionHaarcascades)
+	ON_UPDATE_COMMAND_UI(ID_FACEDETECTION_YUNET, &CFacialAttendance2026Dlg::OnUpdateFacedetectionYunet)
+	ON_UPDATE_COMMAND_UI(ID_FACEDETECTION_BOTH, &CFacialAttendance2026Dlg::OnUpdateFacedetectionBoth)
+	ON_WM_INITMENUPOPUP()
+	ON_COMMAND(ID_FACEDETECTION_SHOWFOLDER, &CFacialAttendance2026Dlg::OnFacedetectionShowfolder)
 END_MESSAGE_MAP()
 
 // --- ★ここから追加（Windowsからカメラ名を取得する関数） ---
@@ -147,14 +155,11 @@ std::vector<CString> GetCameraNames()
 
 
 // CFacialAttendance2026Dlg message handlers
-
 BOOL CFacialAttendance2026Dlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
 	// "バージョン情報..." メニューをシステム メニューに追加します。
-
-	// IDM_ABOUTBOX は、システム コマンドの範囲内になければなりません。
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
 
@@ -175,22 +180,27 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);			// 大きいアイコンの設定
 	SetIcon(m_hIcon, FALSE);		// 小さいアイコンの設定
 
-	// ★ウィンドウを画面上部中央に配置
-	CRect rectWindow, rectScreen;
+	// ウィンドウを画面上部中央に配置
+	CRect rectWindow;
 	GetWindowRect(&rectWindow);
 	int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-	int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-	int windowWidth = rectWindow.Width();
-	int windowHeight = rectWindow.Height();
-	
-	int x = (screenWidth - windowWidth) / 2;  // 左右中央
-	int y = 0;  // 上端
-	
-	SetWindowPos(NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+	int x = (screenWidth - rectWindow.Width()) / 2;
+	SetWindowPos(NULL, x, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
 
-	// --- 追加の初期化処理（ここから） ---
+	// --- 分割した初期化関数の呼び出し ---
+	InitializeCameraList();
+	InitializeWorkerThread();
+	InitializeFontsAndUI();
+	InitializeInputFields();
+	InitializeListControl();
+	InitializeScreenLightSettings();
+	InitializeMenuSettings();
 
-	// 1. 利用可能なカメラの名前を取得してコンボボックスに追加
+	return TRUE;
+}
+
+void CFacialAttendance2026Dlg::InitializeCameraList()
+{
 	std::vector<CString> camNames = GetCameraNames();
 	for (int i = 0; i < static_cast<int>(camNames.size()); i++) {
 		CString itemText;
@@ -198,19 +208,19 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 		m_comboCamera.AddString(itemText);
 	}
 
-	// 2. カメラの初期選択状態を設定
 	if (m_comboCamera.GetCount() > 0) {
 		m_comboCamera.SetCurSel(0);
 		m_currentCameraIdx = 0;
-		// ★初回にカメラを開く
 		m_shouldChangeCamera = true;
 	}
 	else {
-		m_currentCameraIdx = -1; // カメラが見つからない場合
+		m_currentCameraIdx = -1;
 		m_shouldChangeCamera = false;
 	}
+}
 
-	// 4. ワーカースレッドの開始
+void CFacialAttendance2026Dlg::InitializeWorkerThread()
+{
 	std::thread t([this]() {
 		cv::Mat frame;
 		while (!m_bStopThread) {
@@ -219,38 +229,28 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 			cv::VideoCapture& cap = m_detector.GetCapture();
 
 			try {
-				// ★ドロップダウンから切り替えた時の処理がこれだけで済む！
 				if (m_shouldChangeCamera) {
 					{
 						std::lock_guard<std::mutex> lock(m_frameMutex);
-						m_lastFrame = cv::Mat(); // 切り替え時に一旦クリア
+						m_lastFrame = cv::Mat();
 					}
-					// FaceDetector内の安全なオープナーを呼ぶ
 					m_detector.OpenCamera(m_currentCameraIdx);
-
 					m_shouldChangeCamera = false;
 				}
 
-				// カメラから画像が読み込めるかチェック
 				if (cap.isOpened()) {
 					bool ret = cap.read(frame);
-					
 					if (ret && !frame.empty()) {
-						cv::flip(frame, frame, 1);	// mirror mode
+						cv::flip(frame, frame, 1);
 
-						// --- 安全なクロップ＆リサイズ処理 ---
-						int srcW = frame.cols;
-						int srcH = frame.rows;
-						int dstW = m_detector.GetFrameWidth();
-						int dstH = m_detector.GetFrameHeight();
-						
+						// クロップ＆リサイズ等の処理
+						int srcW = frame.cols, srcH = frame.rows;
+						int dstW = m_detector.GetFrameWidth(), dstH = m_detector.GetFrameHeight();
 						cv::Mat resizedFrame;
 
-						// ゼロ除算防止と安全確認
 						if (dstW > 0 && dstH > 0 && srcW > 0 && srcH > 0) {
 							double srcAspect = (double)srcW / srcH;
 							double dstAspect = (double)dstW / dstH;
-
 							cv::Rect cropRect;
 							if (srcAspect > dstAspect) {
 								int newW = (int)(srcH * dstAspect);
@@ -260,22 +260,19 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 								int newH = (int)(srcW / dstAspect);
 								cropRect = cv::Rect(0, (srcH - newH) / 2, srcW, newH);
 							}
-
-							cropRect &= cv::Rect(0, 0, srcW, srcH); // 安全な範囲に収める
-
+							cropRect &= cv::Rect(0, 0, srcW, srcH);
 							if (cropRect.width > 0 && cropRect.height > 0) {
 								cv::Mat croppedFrame = frame(cropRect);
 								cv::resize(croppedFrame, resizedFrame, cv::Size(dstW, dstH));
-							} else {
+							}
+							else {
 								resizedFrame = frame.clone();
 							}
-						} else {
+						}
+						else {
 							resizedFrame = frame.clone();
 						}
 
-						// =======================================================
-						// 1. 表示用のモノクロキャンバスを作る
-						// =======================================================
 						cv::Mat displayFrame;
 						cv::cvtColor(resizedFrame, displayFrame, cv::COLOR_BGR2GRAY);
 						cv::cvtColor(displayFrame, displayFrame, cv::COLOR_GRAY2BGR);
@@ -283,52 +280,60 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 						// =======================================================
 						// 2. 顔検出処理 (元のカラー画像で行う)
 						// =======================================================
-						cv::Mat faces;
-						m_detector.DetectFacesYunet(resizedFrame, faces);
-						m_detector.DrawBoundingBoxesYunet(displayFrame, faces); // 描画はモノクロの方へ
-
+						int currentMode = m_faceDetectionMode;
 						std::vector<cv::Rect> haarRects;
-						m_detector.DetectFacesHaar(resizedFrame, haarRects);
-						m_detector.DrawBoundingBoxesHaar(displayFrame, haarRects); // 描画はモノクロの方へ
+						cv::Mat faces;
 
-						// =======================================================
-						// 3. 中央に固定の黄色いガイド枠を描画
-						// =======================================================
-						int guideW = displayFrame.cols * 5 / 10;
-						int guideH = displayFrame.rows * 8 / 10;
-						int guideX = (displayFrame.cols - guideW) / 2;
-						int guideY = (displayFrame.rows - guideH) / 2;
-						
-						// 画面内に収まる場合のみ描画
+						// Haar (モード 0 または 2)
+						if (currentMode == 0 || currentMode == 2) {
+							// ★ 第一引数を resizedFrame から displayFrame に変更する！
+							m_detector.DetectFacesHaar(displayFrame, haarRects);
+							m_detector.DrawBoundingBoxesHaar(displayFrame, haarRects); // 描画はモノクロの方へ
+						}
+
+						// YuNet (モード 1 または 2)
+						if (currentMode == 1 || currentMode == 2) {
+							m_detector.DetectFacesYunet(resizedFrame, faces); // YuNetは元画像のままでOK
+							m_detector.DrawBoundingBoxesYunet(displayFrame, faces);
+						}
+
+						int guideW = displayFrame.cols * 5 / 10, guideH = displayFrame.rows * 8 / 10;
+						int guideX = (displayFrame.cols - guideW) / 2, guideY = (displayFrame.rows - guideH) / 2;
 						if (guideX >= 0 && guideW > 0 && guideH > 0) {
 							cv::rectangle(displayFrame, cv::Rect(guideX, guideY, guideW, guideH), cv::Scalar(0, 180, 200), 2);
 						}
 
-						// =======================================================
-						// 4. 顔が検出されなかった場合の警告状態をセット
-						// =======================================================
 						bool faceDetected = false;
-						if (faces.rows > 0 || !haarRects.empty()) {
+						// Haarで検出されたかチェック
+						if ((currentMode == 0 || currentMode == 2) && !haarRects.empty()) {
 							faceDetected = true;
 						}
-
-						// ここでは画像に文字を書かず、UIスレッドに状態を伝えるだけ
+						// YuNetで検出されたかチェック
+						if ((currentMode == 1 || currentMode == 2) && faces.rows > 0) {
+							faceDetected = true;
+						}
 						m_bShowWarning.store(!faceDetected);
 
-						// =======================================================
-						// 5. FPS計算・画面更新・ScreenLight処理
-						// =======================================================
+						// ★ここで1フレームの全体の処理速度（FPS）を計算しています
 						double fps = m_fpsCounter.tick();
-						// ★ OpenCVでのテキスト描画をやめ、UI側（GDI）へ値を渡す
 						m_currentFps.store(fps);
 
-						// 画面表示用の変数には、全てを描画し終わった displayFrame を渡す
-						{
-							std::lock_guard<std::mutex> lock(m_frameMutex);
-							m_lastFrame = displayFrame.clone(); 
+						// ★修正：全体のフレーム処理時間(ms)を計算して加算
+						if (fps > 0.0) {
+							m_totalFrames++;
+							double frameMs = 1000.0 / fps;
+
+							double expectedMs = m_totalLatencyMs.load();
+							while (!m_totalLatencyMs.compare_exchange_weak(expectedMs, expectedMs + frameMs)) {
+								// リトライ
+							}
 						}
 
-						// Adaptive Screen Light の更新(元のカラー映像を使用)
+						{
+							std::lock_guard<std::mutex> lock(m_frameMutex);
+							m_lastFrame = displayFrame.clone();
+						}
+
 						auto mode = m_screenLightMode.load();
 						if (mode != ScreenLightMode::None) {
 							try {
@@ -347,150 +352,112 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 							catch (...) {}
 						}
 
-						// 画面に描画する
 						PostMessage(WM_TIMER, 1, 0);
-						if (fps > 40.0) {
-							std::this_thread::sleep_for(std::chrono::milliseconds(5));
-						}
+						if (fps > 40.0) std::this_thread::sleep_for(std::chrono::milliseconds(5));
 					}
-					else {
-						std::this_thread::sleep_for(std::chrono::milliseconds(1));
-					}
+					else std::this_thread::sleep_for(std::chrono::milliseconds(1));
 				}
-				else {
-					std::this_thread::sleep_for(std::chrono::milliseconds(1));
-				}
-			}  // try ブロックの終わり
+				else std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
 			catch (...) {
 				m_shouldChangeCamera = false;
 				if (cap.isOpened()) cap.release();
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			}
-		} // while (!m_bStopThread) の終わり
-	}); // スレッド定義の終わり
+		}
+		});
 
-	// 警告 C26444 を回避する
 	m_workerThread = std::move(t);
+}
 
-	// 5. 描画更新用のタイマー
-	// m_timerId = SetTimer(1, 33, nullptr);
-	//m_largeFont.CreatePointFont(140, _T("MS Shell Dlg"));
-	//GetDlgItem(IDC_BUTTON_Photo_OK)->SetFont(&m_largeFont);
-	//GetDlgItem(IDCLOSE)->SetFont(&m_largeFont);
-
+void CFacialAttendance2026Dlg::InitializeFontsAndUI()
+{
 	LOGFONT lf;
 	GetFont()->GetLogFont(&lf);
 
-	// 2. サイズを「18」に設定（共通）
 	HDC hdc = ::GetDC(NULL);
 	lf.lfHeight = -MulDiv(18, GetDeviceCaps(hdc, LOGPIXELSY), 72);
 	::ReleaseDC(NULL, hdc);
 	_tcscpy_s(lf.lfFaceName, _T("Segoe UI"));
 
-	// --- 3. 「太字」フォントの実体化 ---
-	lf.lfWeight = FW_HEAVY; 
+	lf.lfWeight = FW_HEAVY;
 	m_fontBold.DeleteObject();
 	m_fontBold.CreateFontIndirect(&lf);
 
-	// --- 4. 「標準」フォントの実体化 ---
-	lf.lfWeight = FW_NORMAL; // 標準の太さに戻す
+	lf.lfWeight = FW_NORMAL;
 	m_fontRegular.DeleteObject();
 	m_fontRegular.CreateFontIndirect(&lf);
 
+	if (GetDlgItem(IDC_BUTTON_CAMERA_ON)) GetDlgItem(IDC_BUTTON_CAMERA_ON)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_BUTTON_PHOTO_OK))  GetDlgItem(IDC_BUTTON_PHOTO_OK)->SetFont(&m_fontBold);
+	if (GetDlgItem(IDC_BUTTON_CONFIRM))   GetDlgItem(IDC_BUTTON_CONFIRM)->SetFont(&m_fontBold);
+	if (GetDlgItem(IDCLOSE))              GetDlgItem(IDCLOSE)->SetFont(&m_fontRegular);
 
-	// 5. 各ボタンに適用
-	// Photo OK ボタン（太字）
-	if (GetDlgItem(IDC_BUTTON_Camera_ON)) {
-		GetDlgItem(IDC_BUTTON_Camera_ON)->SetFont(&m_fontRegular);
-	}
-	if (GetDlgItem(IDC_BUTTON_Photo_OK)) {
-		GetDlgItem(IDC_BUTTON_Photo_OK)->SetFont(&m_fontBold);
-	}
-
-	if (GetDlgItem(IDC_BUTTON_CONFIRM)) {
-		GetDlgItem(IDC_BUTTON_CONFIRM)->SetFont(&m_fontBold);
-	}
-
-	if (GetDlgItem(IDCLOSE)) {
-		GetDlgItem(IDCLOSE)->SetFont(&m_fontRegular);
-	}
-
-	// ★ここから追加: 各入力フィールド（コントロール変数）に大きなフォント（m_fontRegular）を適用
 	m_comboName.SetFont(&m_fontRegular);
 	m_editID.SetFont(&m_fontRegular);
 	m_editTime.SetFont(&m_fontRegular);
 	m_editComment.SetFont(&m_fontRegular);
 
-	// ★ここから追加: 各ラベル（スタティックテキスト）に大きなフォントを適用
-	// ※ IDC_STATIC_NAME などの専用IDがない場合を考慮し、コントロールIDを指定して適用します。
-	// resource.h に振られているであろう一般的なラベルID（ここではGetDlgItemで取れるか確認します）
-	if (GetDlgItem(IDC_STATIC_NAME))    GetDlgItem(IDC_STATIC_NAME)->SetFont(&m_fontRegular);
-	if (GetDlgItem(IDC_STATIC_ID))      GetDlgItem(IDC_STATIC_ID)->SetFont(&m_fontRegular);
-	if (GetDlgItem(IDC_STATIC_TIME))    GetDlgItem(IDC_STATIC_TIME)->SetFont(&m_fontRegular);
-	if (GetDlgItem(IDC_STATIC_COMMENT)) GetDlgItem(IDC_STATIC_COMMENT)->SetFont(&m_fontRegular);
-	if (GetDlgItem(IDC_STATIC_ARROW1)) GetDlgItem(IDC_STATIC_ARROW1)->SetFont(&m_fontBold);
+	if (GetDlgItem(IDC_STATIC_NAME))      GetDlgItem(IDC_STATIC_NAME)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_ID))        GetDlgItem(IDC_STATIC_ID)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_TIME))      GetDlgItem(IDC_STATIC_TIME)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_COMMENT))   GetDlgItem(IDC_STATIC_COMMENT)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_ARROW1))    GetDlgItem(IDC_STATIC_ARROW1)->SetFont(&m_fontBold);
 	if (GetDlgItem(IDC_STATIC_ATTENDEES)) GetDlgItem(IDC_STATIC_ATTENDEES)->SetFont(&m_fontRegular);
+}
 
-	// ★ここから追加: 入力フィールドの高さをUI_FIELD_HEIGHTピクセルに設定
+void CFacialAttendance2026Dlg::InitializeInputFields()
+{
+	LOGFONT lf;
 	m_comboName.SetItemHeight(-1, UI_FIELD_HEIGHT);
-	//int newHeight = UI_FIELD_HEIGHT;
-	//CRect rectID, rectTime;
-	//m_editID.GetWindowRect(&rectID);
-	//m_editID.SetWindowPos(nullptr, 0, 0, rectID.Width(), newHeight, SWP_NOMOVE | SWP_NOSIZE);
-	//m_editTime.GetWindowRect(&rectTime);
-	//m_editTime.SetWindowPos(nullptr, 0, 0, rectTime.Width(), newHeight, SWP_NOMOVE | SWP_NOSIZE);
-	// --- IDフィールドに固定幅フォントを設定 ---
-	GetFont()->GetLogFont(&lf); // 現在のダイアログのフォント設定をベースにする
-	wcscpy_s(lf.lfFaceName, _T("Tahoma"));
+
+	GetFont()->GetLogFont(&lf);
+	wcscpy_s(lf.lfFaceName, _T("Tahoma")); 
+
+	m_fontFixedList.DeleteObject();
+	m_fontFixedList.CreateFontIndirect(&lf);
+
 	lf.lfHeight = UI_FIELD_HEIGHT;
-	m_fontFixed.CreateFontIndirect(&lf);         // フォントを作成
+	m_fontFixed.DeleteObject();
+	m_fontFixed.CreateFontIndirect(&lf);
 
-	// ===== ID / Time / リストコントロール 用の等幅フォント設定 =====
+	m_editID.SetFont(&m_fontFixed);
+	m_editTime.SetFont(&m_fontFixed);
 
-	GetFont()->GetLogFont(&lf); // 現在のダイアログのフォント設定をベースにする
-	wcscpy_s(lf.lfFaceName, _T("Tahoma"));
-
-	// --- 修正箇所: CreateFontIndirect の前に DeleteObject() を呼ぶ ---
-	
-	// リストコントロール用
-	m_fontFixedList.DeleteObject();          // <--- これを追加
-	m_fontFixedList.CreateFontIndirect(&lf); 
-
-	// ID / Time フィールド用
-	lf.lfHeight = UI_FIELD_HEIGHT;
-	m_fontFixed.DeleteObject();              // <--- これを追加
-	m_fontFixed.CreateFontIndirect(&lf);     
-
-	// フィールドへの適用
-	m_editID.SetFont(&m_fontFixed);          
-	m_editTime.SetFont(&m_fontFixed);        
-
-
-	// m_editID (ID)
 	m_editID.ModifyStyleEx(0, WS_EX_CLIENTEDGE, SWP_FRAMECHANGED);
-	m_editID.SetWindowPos(NULL, 0, 0, 0, 0,
-		SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+	m_editID.SetWindowPos(NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
-	// m_editComment (Comment)
 	m_editComment.ModifyStyleEx(0, WS_EX_CLIENTEDGE, SWP_FRAMECHANGED);
-	m_editComment.SetWindowPos(NULL, 0, 0, 0, 0,
-		SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+	m_editComment.SetWindowPos(NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
-	// Name コンボボックスのテキスト部分にも念のため枠線スタイルを追加
 	m_comboName.ModifyStyleEx(0, WS_EX_CLIENTEDGE, SWP_FRAMECHANGED);
-	m_comboName.SetWindowPos(NULL, 0, 0, 0, 0,
-		SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-	// ------------
+	m_comboName.SetWindowPos(NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
-	// --- 追加の初期化処理（ここまで） ---
+	m_editID.SetLimitText(UI_ID_TEXT_MAX_LENGTH);
+	m_editComment.SetLimitText(UI_COMMENT_TEXT_MAX_LENGTH);
 
-	// Adaptive Screen Light を有効化（カメラ起動と同時にスタート）
-//    //m_screenLight.SetEnabled(true, GetSafeHwnd());
-    PostMessage(WM_APP + 2, 0, 0); // ダイアログ表示後に遅延実行
+	m_editTime.SetFormat(_T("HH:mm"));
+}
 
-	// ── Screen Light 永続化された設定を復元 ──────────────────
-	// 初期値: AUTO(2)、スライダー 100
-	int savedMode   = AfxGetApp()->GetProfileInt(_T("ScreenLight"), _T("Mode"),   2);
+void CFacialAttendance2026Dlg::InitializeListControl()
+{
+	CListCtrl* pListCtrl = (CListCtrl*)GetDlgItem(IDC_ATTENDEES_LIST);
+	if (pListCtrl != nullptr) {
+		pListCtrl->SetFont(&m_fontFixedList);
+		pListCtrl->ModifyStyle(LVS_TYPEMASK, LVS_REPORT);
+		pListCtrl->SetExtendedStyle(pListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT);
+
+		pListCtrl->InsertColumn(0, _T("Time"), LVCFMT_LEFT, 45);
+		pListCtrl->InsertColumn(1, _T("Name"), LVCFMT_LEFT, 125);
+		pListCtrl->InsertColumn(2, _T("ID"), LVCFMT_LEFT, 90);
+	}
+}
+
+void CFacialAttendance2026Dlg::InitializeScreenLightSettings()
+{
+	PostMessage(WM_APP + 2, 0, 0);
+
+	int savedMode = AfxGetApp()->GetProfileInt(_T("ScreenLight"), _T("Mode"), 2);
 	int savedSlider = AfxGetApp()->GetProfileInt(_T("ScreenLight"), _T("Slider"), 100);
 	if (savedSlider < 0)   savedSlider = 0;
 	if (savedSlider > 100) savedSlider = 100;
@@ -510,6 +477,7 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	case 1: savedModeEnum = ScreenLightMode::Slider; break;
 	default: savedModeEnum = ScreenLightMode::Auto;  break;
 	}
+
 	int radioId = IDC_RADIO_SL_AUTO;
 	switch (savedModeEnum)
 	{
@@ -517,36 +485,14 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	case ScreenLightMode::None:   radioId = IDC_RADIO_SL_NONE;   break;
 	default:                      radioId = IDC_RADIO_SL_AUTO;   break;
 	}
+
 	CheckRadioButton(IDC_RADIO_SL_SLIDER, IDC_RADIO_SL_NONE, radioId);
 	m_screenLightMode.store(savedModeEnum);
-	// ────────────────────────────────────────────────────────
-	m_editID.SetLimitText(UI_ID_TEXT_MAX_LENGTH);       // IDは8桁
-	m_editComment.SetLimitText(UI_COMMENT_TEXT_MAX_LENGTH); // コメントは200文字
+}
 
-	// ★追加: Timeフィールドのロック強制解除と「数字:数字」のマスク設定
-	// （※ここにあった m_editTime.SetReadOnly と m_editTime.EnableMask は削除）
-	
-	// 「時:分」形式 (例: 14:30) に設定する
-   m_editTime.SetFormat(_T("HH:mm"));
-
-	// --- IDC_ATTENDEES_LIST の初期化 ---
-	CListCtrl* pListCtrl = (CListCtrl*)GetDlgItem(IDC_ATTENDEES_LIST);
-	if (pListCtrl != nullptr) {
-		// リスト用等幅フォント(デフォルトサイズ)を適用
-		pListCtrl->SetFont(&m_fontFixedList); 
-
-		pListCtrl->ModifyStyle(LVS_TYPEMASK, LVS_REPORT);
-		pListCtrl->SetExtendedStyle(pListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT);
-
-		// 列幅は画像に合わせて少し小さめに設定（例: 45, 125, 90）
-		pListCtrl->InsertColumn(0, _T("Time"), LVCFMT_LEFT, 45);
-		pListCtrl->InsertColumn(1, _T("Name"), LVCFMT_LEFT, 125);
-		pListCtrl->InsertColumn(2, _T("ID"),   LVCFMT_LEFT, 90);
-
-	}
-	// --- 追加ここまで ---
-
-    return TRUE;  // フォーカスをコントロールに設定した場合を除きTRUEを返します。
+void CFacialAttendance2026Dlg::InitializeMenuSettings()
+{
+	m_faceDetectionMode = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, 2);	// 0:Haar, 1:Yunet, 2:Both
 }
 
 void CFacialAttendance2026Dlg::UpdateIdentificationFields(CString name)
@@ -914,15 +860,15 @@ void CFacialAttendance2026Dlg::OnBnClickedClose()
 
 void CFacialAttendance2026Dlg::OnCancel()
 {
-    // スレッドに終了を通知
     m_bStopThread = true;
     
-    // スレッドが安全に終わるまで待機
     if (m_workerThread.joinable()) {
         m_workerThread.join();
     }
 
-    // 本来のダイアログ終了処理（ここでウィンドウが閉じます）
+    // ★終了時にここで１回保存する
+    FlushAndResetEvaluationData();
+    
     CDialogEx::OnCancel();
 }
 
@@ -1112,9 +1058,6 @@ void CFacialAttendance2026Dlg::SaveAttendanceToCsv(const CString& strTime, const
 		fclose(fp);
 	}
 }
-// --- ★ここまで ---
-
-// --- ここから追加 ---
 
 void CFacialAttendance2026Dlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 {
@@ -1146,4 +1089,99 @@ void CFacialAttendance2026Dlg::OnFileShowattendancelist()
 	// TODO: Add your command handler code here
 }
 
-// --- ここまで追加 ---
+// --- メニューのクリックイベント 兼 設定の保存 ---
+void CFacialAttendance2026Dlg::OnFacedetectionHaarcascades()
+{
+	FlushAndResetEvaluationData(); // ★追加: 切り替える前に現在のデータを保存してリセット
+	m_faceDetectionMode = 0;
+	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, m_faceDetectionMode);
+}
+void CFacialAttendance2026Dlg::OnFacedetectionYunet()
+{
+	FlushAndResetEvaluationData(); // ★追加
+	m_faceDetectionMode = 1;
+	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, m_faceDetectionMode);
+}
+void CFacialAttendance2026Dlg::OnFacedetectionBoth()
+{
+	FlushAndResetEvaluationData(); // ★追加
+	m_faceDetectionMode = 2;
+	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, m_faceDetectionMode);
+}
+
+// --- メニューのチェックマークの更新 ---
+void CFacialAttendance2026Dlg::OnUpdateFacedetectionHaarcascades(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio(m_faceDetectionMode == 0);
+}
+void CFacialAttendance2026Dlg::OnUpdateFacedetectionYunet(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio(m_faceDetectionMode == 1);
+}
+void CFacialAttendance2026Dlg::OnUpdateFacedetectionBoth(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio(m_faceDetectionMode == 2);
+}
+
+// --- ダイアログでメニューの UPDATE_COMMAND_UI を動作させるためのおまじない ---
+void CFacialAttendance2026Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL bSysMenu)
+{
+	CDialogEx::OnInitMenuPopup(pPopupMenu, nIndex, bSysMenu);
+
+	if (!bSysMenu && pPopupMenu != nullptr)
+	{
+		CCmdUI cmdUI;
+		cmdUI.m_pMenu = pPopupMenu;
+		cmdUI.m_nIndexMax = pPopupMenu->GetMenuItemCount();
+
+		for (cmdUI.m_nIndex = 0; cmdUI.m_nIndex < cmdUI.m_nIndexMax; ++cmdUI.m_nIndex)
+		{
+			cmdUI.m_nID = pPopupMenu->GetMenuItemID(cmdUI.m_nIndex);
+			// セパレーター（区切り線）等はスキップ
+			if (cmdUI.m_nID == (UINT)-1 || cmdUI.m_nID == 0)
+				continue;
+
+			// 各メニュー項目に対して OnUpdate... 処理を強制的に呼び出す
+			cmdUI.DoUpdate(this, FALSE);
+		}
+	}
+}
+
+// --- "Show Folder" メニューがクリックされた時の処理 ---
+void CFacialAttendance2026Dlg::OnFacedetectionShowfolder()
+{
+	// 現在の計測値をCSVに書き込んでからリセットする
+	FlushAndResetEvaluationData();
+
+	// ★修正: Face Detection のレイテンシ用フォルダ名 (MyConst.h の定数) を渡す
+	OpenEvaluationFolder(wFACE_DETECTION_LATENCY_FOLDER_NAME);
+}
+
+// ★追加: 溜まった計測データをCSVに書き込み、累計を0にリセットする
+void CFacialAttendance2026Dlg::FlushAndResetEvaluationData()
+{
+    // スレッドが裏で動いている最中なので、一応アトミック変数の値をスナップショットで取得する
+    uint64_t frames = m_totalFrames.load();
+    if (frames > 0) {
+        
+        // ★修正: アルゴリズム単体の速度ではなく、全体の実際のループにかかった時間(FPSの逆数)を使う場合
+        // （画面上で表示されているFPSの平均値に合わせる）
+        double totalLoopMs = m_totalLatencyMs.load(); // いったんそのまま
+        
+        // 平均を求める
+        double avgLatencyMs = totalLoopMs / (double)frames;
+        double equivalentFps = 0.0;
+        if (avgLatencyMs > 0.0) {
+            equivalentFps = 1000.0 / avgLatencyMs; // これまでの理論FPS
+        }
+
+        // CSVファイルへ保存：純粋な推論時間(avgLatencyMs)と、現実のFPSの平均を出す場合はこれ
+        // もし現実のFPSを出したい場合は、fpsCounterの値を足し込むようにコードの計測位置をループの先頭に出す必要があります。
+        
+        SaveEvaluationLatencyCsv(m_faceDetectionMode, avgLatencyMs, equivalentFps);
+        
+        // ★ カウンターをリセットして、再起動したのと同じようにする
+        m_totalFrames.store(0);
+        m_totalLatencyMs.store(0.0);
+    }
+}

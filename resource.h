@@ -9,14 +9,14 @@
 #define IDR_MAINFRAME                   128
 #define IDR_MENU1                       130
 #define IDC_STATIC_PREVIEW              1000
-#define IDC_BUTTON_Photo_OK             1001
+#define IDC_BUTTON_PHOTO_OK             1001
 #define IDC_COMBO_CAMERA                1002
 #define IDC_RADIO_SL_SLIDER             1003
 #define IDC_RADIO_SL_AUTO               1004
 #define IDC_RADIO_SL_NONE               1005
 #define IDC_SLIDER_SL                   1006
 #define IDC_STATIC_SL_VALUE             1007
-#define IDC_BUTTON_Camera_ON            1008
+#define IDC_BUTTON_CAMERA_ON            1008
 #define IDC_LIST1                       1010
 #define IDC_ATTENDEES_LIST              1010
 #define IDC_STATIC_NAME                 1020
@@ -33,13 +33,18 @@
 #define IDC_STATIC_ATTENDEES            1032
 #define ID_FILE_SHOWATTENDANCELIST      32771
 #define ID_FILE_EXIT                    32772
+#define ID_EVALUATION_FACEDETECTION     32773
+#define ID_FACEDETECTION_HAARCASCADES   32774
+#define ID_FACEDETECTION_YUNET          32775
+#define ID_FACEDETECTION_BOTH           32776
+#define ID_FACEDETECTION_SHOWFOLDER     32777
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        131
-#define _APS_NEXT_COMMAND_VALUE         32773
+#define _APS_NEXT_COMMAND_VALUE         32778
 #define _APS_NEXT_CONTROL_VALUE         1011
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

@@ -55,10 +55,12 @@ protected:
     afx_msg void OnRadioSlNone();
     afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
     afx_msg void OnBnClickedButtonConfirm();
+    afx_msg void OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL bSysMenu);
 
     DECLARE_MESSAGE_MAP()
 
 private:
+    int m_faceDetectionMode = 2; // 0:Haar, 1:Yunet, 2:Both
     CComboBox    m_comboCamera;
     CSliderCtrl  m_sliderScreenLight;
     CComboBox    m_comboName;
@@ -95,23 +97,43 @@ private:
 
     // ★ 追加: CSVへの保存処理を抜き出した関数
     void SaveAttendanceToCsv(const CString& strTime, const CString& strName, const CString& strID, const CString& strComment);
+    
+    // ★追加: 計測データをCSVに吐き出してリセットする関数
+    void FlushAndResetEvaluationData();
 
     // Screen Light モードをUIに反映し永続化する
     void    ApplyScreenLightMode(ScreenLightMode mode);
-    // スライダー値をUIラベル・色に反映し永続化する
     void    ApplySliderValue(int value);
-    // スライダー値からグレースケール COLORREF を求める
     static COLORREF SliderToColor(int value);
 
-    // ★追加: スレッド処理用の変数
+    // ★機能ごとに分割した初期化関数
+    void InitializeCameraList();
+    void InitializeWorkerThread();
+    void InitializeFontsAndUI();
+    void InitializeInputFields();
+    void InitializeListControl();
+    void InitializeScreenLightSettings();
+    void InitializeMenuSettings();
+
     std::thread m_workerThread;
     std::atomic<bool> m_bStopThread{ false };
     std::atomic<bool> m_bShowWarning{ false };
-    std::atomic<double> m_currentFps{ 0.0 }; // ← ★これを追加
+    std::atomic<double> m_currentFps{ 0.0 };
+
+    // ★追加: 評価(Evaluation)用データの収集用変数
+    std::atomic<uint64_t> m_totalFrames{ 0 };
+    std::atomic<double>   m_totalLatencyMs{ 0.0 };
 
 public:
     afx_msg void OnBnClickedClose();  // 既存のボタン用処理
     virtual void OnCancel();          // ← ★追加！ (×ボタンやESCキー用)
     afx_msg void OnFileExit();
     afx_msg void OnFileShowattendancelist();
+    afx_msg void OnFacedetectionHaarcascades();
+    afx_msg void OnFacedetectionYunet();
+    afx_msg void OnFacedetectionBoth();
+    afx_msg void OnUpdateFacedetectionHaarcascades(CCmdUI* pCmdUI);
+    afx_msg void OnUpdateFacedetectionYunet(CCmdUI* pCmdUI);
+    afx_msg void OnUpdateFacedetectionBoth(CCmdUI* pCmdUI);
+    afx_msg void OnFacedetectionShowfolder();
 };

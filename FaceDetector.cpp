@@ -29,6 +29,35 @@ bool FaceDetector::OpenCamera(int cameraIdx)
         cap_.release();
     }
 
+    int targetW = frameWidth_;
+    int targetH = frameHeight_;
+
+    // DirectShow を使って一発で素早く開く
+    cap_.open(cameraIdx);
+    cap_.open(cameraIdx, cv::CAP_DSHOW);
+    if (!cap_.isOpened()) {
+        return false;
+    }
+
+    // 解像度の設定
+    cap_.set(cv::CAP_PROP_FRAME_WIDTH, targetW);
+    cap_.set(cv::CAP_PROP_FRAME_HEIGHT, targetH);
+
+    // (オプション) DirectShow バックエンドならFPSやフォーマットもある程度指定通りになりやすいです
+    // cap_.set(cv::CAP_PROP_FPS, 30); 
+
+    // 余計な読み込みテストとフォールバック処理は削除する
+
+    return true; // 速やかに true を返す
+}
+
+// old. slow but works on more cameras. kept for reference and fallback.
+bool FaceDetector::OpenCamera_ok(int cameraIdx)
+{
+    if (cap_.isOpened()) {
+        cap_.release();
+    }
+
     int targetW = frameWidth_;    // which is CaptureWidth by default
     int targetH = frameHeight_;   // which is CaptureHeight by default
 
@@ -45,24 +74,20 @@ bool FaceDetector::OpenCamera(int cameraIdx)
     // テスト読み込み（解像度指定のせいでドライバがご機嫌斜めになっていないか確認）
     cv::Mat testFrame;
     bool testOk = false;
-    
-    for (int i = 0; i < 5; i++) {
+    int i;
+    const int MAX_ATTEMPTS = 1; // 最初の試行とフォールバックの両方を含む  
+
+    for (i = 0; i < MAX_ATTEMPTS; i++) {
         if (cap_.read(testFrame) && !testFrame.empty()) {
-            testOk = true;
-            break; 
+            break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-
-    if (!testOk) {
-        needsFallback = true; 
-    }
-
     // --- 2回目の挑戦（フォールバック）：解像度指定なしで開き直す ---
-    if (needsFallback) {
+    if (i == MAX_ATTEMPTS) {
         cap_.release();
-        std::this_thread::sleep_for(std::chrono::milliseconds(200)); 
-        
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
         cap_.open(cameraIdx);
         if (!cap_.isOpened()) {
             return false;
