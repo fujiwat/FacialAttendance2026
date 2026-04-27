@@ -56,10 +56,11 @@
 | &ensp; target_id | DNN_TARGET_CPU (default) |
 
 ## Issue
-1. There is a acase that the score of closing eyes was better than opening eyes.
+1. There is a case that the score of closing eyes was better than opening eyes.
 <img width="1185" height="693" alt="image" src="https://github.com/user-attachments/assets/663d3405-ecae-4a59-9d90-63f0d843c231" />
 
 ## Log
+- 04.26.  Ring Buffer showing best face and worst face with score.
 - 04.25.  Change the view full color -> gray scale to enphasize the bounding box, guide frame.
 - 04.24.  Adaptive Screen Light, Slider completed. Changed the HaarCascade parameter (ScaleFaceor1.2->1.1, MinNeibors 10->8). 
 - 04.23.  Implimenting Adaptive Screen Light, not completed.
