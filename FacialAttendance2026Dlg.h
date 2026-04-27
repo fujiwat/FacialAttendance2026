@@ -23,8 +23,15 @@ enum class ScreenLightMode
 
 // --- ダイアログクラスの宣言の前に構造体を定義 ---
 struct FaceBufferItem {
-    cv::Mat face112;      // 112x112に正規化されたカラー顔画像
-    double sharpness = 0.0; // ★追加: 「= 0.0;」をつけて初期化しておく
+    cv::Mat face112;             // 112x112に正規化されたカラー顔画像
+    cv::Mat rawFrame;            // SFaceのアライメントで使うための「切り出す前の元フレーム」
+    std::vector<float> faceData; // YuNet互換の15要素
+
+    // ★初期値(= 0.0;)をつけて警告をなくす
+    double sharpness = 0.0;
+    double confidence = 0.0;  
+    double contrast = 0.0;    
+    double totalScore = 0.0;  
 };
 
 // CFacialAttendance2026Dlg dialog
@@ -143,8 +150,8 @@ private:
     // === Worker Thread 抽出用ヘルパー関数 ===
     void ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& outResizedFrame, cv::Mat& outDisplayFrame);
     
-    // ★ 変更後: 第4引数に centerFaceRect を追加し、そこに中心の顔枠を返します
-    bool PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces, cv::Rect& centerFaceRect);
+    // ★変更: centerFaceRect, outFaceConfidence をやめ、15要素の配列 outBestFaceData で返すようにする
+    bool PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces, std::vector<float>& outBestFaceData);
     void UpdateFpsAndLatency(double fps);
     void UpdateScreenLightUsingFaces(const cv::Mat& resizedFrame, const cv::Mat& faces);
 
@@ -170,5 +177,8 @@ public:
     afx_msg void OnBnClickedButtonCameraOn();   
 
     double CalculateSharpness(const cv::Mat& img);                   // 鮮明度を計算する関数
+    double CalculateContrast(const cv::Mat& img);                      // コントラストの計算
+    double CalculateBestFaceScore(double sharpness, double faceConfidence, double contrast); // ベストスコアの計算
+
     void DrawMatToStatic(int nID, const cv::Mat& mat);               // 任意のStaticコントロールにcv::Matを描画する共通関数
 };

@@ -39,6 +39,11 @@
 #pragma region FACE_RECOGNITION
 	const int MAX_FACE_RING_BUFFER = 300;	// 顔写真のリングバッファの最大保存数 (1フレーム1枚として約10秒分)
 	const int FACE_NORM_SIZE = 112;			// 顔の正規化サイズ (SFace, Eigenfaces, LBPH 共通)
+	// 顔評価用スコアの重み (合計 1.0 になるように設定)
+	const double FACE_WEIGHT_CONFIDENCE = 0.6; // 確度（正面、隠れなし）
+	const double FACE_WEIGHT_SHARPNESS = 0.2; // シャープネス（ブレ）
+	const double FACE_WEIGHT_CONTRAST = 0.2; // コントラスト（白飛び/黒つぶれ）
+
 #pragma endregion
 
 #pragma region Evaluation_Constants

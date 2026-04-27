@@ -269,58 +269,67 @@ void CFacialAttendance2026Dlg::InitializeWorkerThread()
 						ProcessCameraFrame(frame, resizedFrame, displayFrame);
 
 						cv::Mat faces;
-						cv::Rect targetFaceRect; // ★追加：検出された顔の枠を受け取る変数
+						std::vector<float> bestFaceData; // ★変更：配列を受け取る
 
-						// ★変更：第4引数に targetFaceRect を追加して呼び出す
-						bool faceDetected = PerformFaceDetection(displayFrame, resizedFrame, faces, targetFaceRect);
+						// ★変更
+						bool faceDetected = PerformFaceDetection(displayFrame, resizedFrame, faces, bestFaceData);
 						m_bShowWarning.store(!faceDetected);
 
 						// キャプチャ動作中で、かつ顔が一つでも検出された場合
-						if (m_bCapturing && faceDetected && targetFaceRect.width > 0 && targetFaceRect.height > 0) {
+						if (m_bCapturing && faceDetected && !bestFaceData.empty()) {
 							
-							// 画面外にはみ出さないように安全確認
-							// int x = std::max(0, targetFaceRect.x);
-							// int y = std::max(0, targetFaceRect.y);
-							// int w = std::min(displayFrame.cols - x, targetFaceRect.width);
-							// int h = std::min(displayFrame.rows - y, targetFaceRect.height);
+							// ★追加: 15要素の配列から、これまで使っていた変数（RectとConfidence）を復元する
+							cv::Rect targetFaceRect(
+								static_cast<int>(bestFaceData[0]),
+								static_cast<int>(bestFaceData[1]),
+								static_cast<int>(bestFaceData[2]),
+								static_cast<int>(bestFaceData[3])
+							);
+							double faceConfidence = static_cast<double>(bestFaceData[14]);
 
-							// ★ 顔の中心を求めて、長辺に合わせた「正方形」の切り出し枠を作る
-							int cx = targetFaceRect.x + targetFaceRect.width / 2;
-							int cy = targetFaceRect.y + targetFaceRect.height / 2;
-							int sideLength = std::max(targetFaceRect.width, targetFaceRect.height);
+							if (targetFaceRect.width > 0 && targetFaceRect.height > 0) {
+                                // ---- これ以降は今まで通りの切り出し処理 ----
+								int cx = targetFaceRect.x + targetFaceRect.width / 2;
+								int cy = targetFaceRect.y + targetFaceRect.height / 2;
+								int sideLength = std::max(targetFaceRect.width, targetFaceRect.height);
 
-							// 枠が画面外にはみ出さないよう安全に計算
-							int x = std::max(0, cx - sideLength / 2);
-							int y = std::max(0, cy - sideLength / 2);
-							int w = std::min(displayFrame.cols - x, sideLength);
-							int h = std::min(displayFrame.rows - y, sideLength);
+								// 枠が画面外にはみ出さないよう安全に計算
+								int x = std::max(0, cx - sideLength / 2);
+								int y = std::max(0, cy - sideLength / 2);
+								int w = std::min(displayFrame.cols - x, sideLength);
+								int h = std::min(displayFrame.rows - y, sideLength);
 
-							// ここでもし画面端で正方形にならなかった場合、もう一度短い方に合わせて完全な正方形にする
-							int finalSide = std::min(w, h);
+								// ここでもし画面端で正方形にならなかった場合、もう一度短い方に合わせて完全な正方形にする
+								int finalSide = std::min(w, h);
 
-							if (finalSide > 0) {
-								// 正方形で切り出す
-								cv::Mat cropFace(resizedFrame, cv::Rect(x, y, finalSide, finalSide));
-								cv::Mat alignedFace;
-								
-								// 112x112 にサイズを正規化（正方形から正方形なので一切歪まない！）
-								cv::resize(cropFace, alignedFace, cv::Size(FACE_NORM_SIZE, FACE_NORM_SIZE));
+								if (finalSide > 0) {
+									// 正方形で切り出す
+									cv::Mat cropFace(resizedFrame, cv::Rect(x, y, finalSide, finalSide));
+									cv::Mat alignedFace;
+									
+									// 112x112 にサイズを正規化（正方形から正方形なので一切歪まない！）
+									cv::resize(cropFace, alignedFace, cv::Size(FACE_NORM_SIZE, FACE_NORM_SIZE));
+									double sharpness = CalculateSharpness(alignedFace);
+									double contrast = CalculateContrast(alignedFace);
+									double totalScore = CalculateBestFaceScore(sharpness, faceConfidence, contrast);
 
-								// ブレ具合を計算してバッファへ追加
-								double score = CalculateSharpness(alignedFace);
+									FaceBufferItem item;
+									item.face112 = alignedFace.clone();       // 今まで通りの正方形画像
+									item.rawFrame = resizedFrame.clone();     // ★追加: SFaceで後から計算するための元画像
+									item.faceData = bestFaceData;             // ★追加: ラントマーク入り配列
+									item.sharpness = sharpness;
+									item.confidence = faceConfidence;
+									item.contrast = contrast;
+									item.totalScore = totalScore;
+									// ロックして配列の末尾に追加する処理
+									{
+										std::lock_guard<std::mutex> lock(m_bufferMutex);
+										m_faceRingBuffer.push_back(item);
 
-								FaceBufferItem item;
-								item.face112 = alignedFace.clone();
-								item.sharpness = score;
-
-								// ロックして配列の末尾に追加する処理
-								{
-									std::lock_guard<std::mutex> lock(m_bufferMutex);
-									m_faceRingBuffer.push_back(item);
-
-									// 300個(MAX_FACE_RING_BUFFER)を超えたら一番古いものを消す
-									if (m_faceRingBuffer.size() > MAX_FACE_RING_BUFFER) {
-										m_faceRingBuffer.pop_front();
+										// 300個(MAX_FACE_RING_BUFFER)を超えたら一番古いものを消す
+										if (m_faceRingBuffer.size() > MAX_FACE_RING_BUFFER) {
+											m_faceRingBuffer.pop_front();
+										}
 									}
 								}
 							}
@@ -773,14 +782,13 @@ void CFacialAttendance2026Dlg::ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& 
 	cv::cvtColor(outDisplayFrame, outDisplayFrame, cv::COLOR_GRAY2BGR);
 }
 
-bool CFacialAttendance2026Dlg::PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces, cv::Rect& centerFaceRect)
+bool CFacialAttendance2026Dlg::PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces, std::vector<float>& outBestFaceData)
 {
 	int currentMode = m_faceDetectionMode;
 	std::vector<cv::Rect> haarRects;
 	bool faceDetected = false;
 
-	// ★初期化
-	centerFaceRect = cv::Rect(); 
+	outBestFaceData.clear(); // 初期化
 	int minDistance2 = std::numeric_limits<int>::max();
 	int cx = displayFrame.cols / 2;
 	int cy = displayFrame.rows / 2;
@@ -791,14 +799,36 @@ bool CFacialAttendance2026Dlg::PerformFaceDetection(cv::Mat& displayFrame, cv::M
 		m_detector.DrawBoundingBoxesHaar(displayFrame, haarRects);
 		if (!haarRects.empty()) {
 			faceDetected = true;
-			// 一番中心に近い顔を探す
 			for (const auto& rect : haarRects) {
 				int dx = (rect.x + rect.width / 2) - cx;
 				int dy = (rect.y + rect.height / 2) - cy;
 				int dist = dx * dx + dy * dy;
 				if (dist < minDistance2) {
 					minDistance2 = dist;
-					centerFaceRect = rect;
+					
+					// ★追加: 15要素の擬似ランドマークと枠を作成して代入
+					outBestFaceData.assign(15, 0.0f);
+					outBestFaceData[0] = static_cast<float>(rect.x);
+					outBestFaceData[1] = static_cast<float>(rect.y);
+					outBestFaceData[2] = static_cast<float>(rect.width);
+					outBestFaceData[3] = static_cast<float>(rect.height);
+					// 右目
+					outBestFaceData[4] = rect.x + rect.width * 0.30f;
+					outBestFaceData[5] = rect.y + rect.height * 0.45f;
+					// 左目
+					outBestFaceData[6] = rect.x + rect.width * 0.70f;
+					outBestFaceData[7] = rect.y + rect.height * 0.45f;
+					// 鼻先
+					outBestFaceData[8] = rect.x + rect.width * 0.50f;
+					outBestFaceData[9] = rect.y + rect.height * 0.65f;
+					// 右口角
+					outBestFaceData[10] = rect.x + rect.width * 0.35f;
+					outBestFaceData[11] = rect.y + rect.height * 0.85f;
+					// 左口角
+					outBestFaceData[12] = rect.x + rect.width * 0.65f;
+					outBestFaceData[13] = rect.y + rect.height * 0.85f;
+					// 確度 (Haarはスコアがないので1.0固定)
+					outBestFaceData[14] = 1.0f; 
 				}
 			}
 		}
@@ -810,18 +840,23 @@ bool CFacialAttendance2026Dlg::PerformFaceDetection(cv::Mat& displayFrame, cv::M
 		m_detector.DrawBoundingBoxesYunet(displayFrame, outFaces);
 		if (!outFaces.empty() && outFaces.rows > 0) {
 			faceDetected = true;
-			// YuNetでも一番中心に近い顔を探して上書き（両モードの場合はYuNetを優先）
 			for (int i = 0; i < outFaces.rows; i++) {
 				int x = int(outFaces.at<float>(i, 0));
 				int y = int(outFaces.at<float>(i, 1));
 				int w = int(outFaces.at<float>(i, 2));
 				int h = int(outFaces.at<float>(i, 3));
+
 				int dx = (x + w / 2) - cx;
 				int dy = (y + h / 2) - cy;
 				int dist = dx * dx + dy * dy;
 				if (dist < minDistance2) {
 					minDistance2 = dist;
-				 centerFaceRect = cv::Rect(x, y, w, h);
+					
+					// ★追加: YuNetの出力をそのまま15要素のvectorへコピー
+					outBestFaceData.assign(15, 0.0f);
+					for (int j = 0; j < 15; j++) {
+						outBestFaceData[j] = outFaces.at<float>(i, j);
+					}
 				}
 			}
 		}
@@ -1261,60 +1296,91 @@ double CFacialAttendance2026Dlg::CalculateSharpness(const cv::Mat& img)
     return sigma.val[0] * sigma.val[0];
 }
 
+// 濃淡（コントラスト）の計算
+double CFacialAttendance2026Dlg::CalculateContrast(const cv::Mat& img)
+{
+	if (img.empty()) return 0.0;
+	cv::Mat gray;
+	if (img.channels() == 3) {
+		cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+	}
+	else {
+		gray = img;
+	}
+	cv::Scalar mu, sigma;
+	cv::meanStdDev(gray, mu, sigma);
+	return sigma.val[0]; // 標準偏差をコントラストスコアとする
+}
+
+// 総合スコアの計算 (重み付け)
+double CFacialAttendance2026Dlg::CalculateBestFaceScore(double sharpness, double faceConfidence, double contrast)
+{
+	// システムの環境に合わせて最大値の目安（分母）を調整してください
+	double normSharpness = std::min(sharpness / 2000.0, 1.0);
+	double normContrast = std::min(contrast / 80.0, 1.0);
+
+	// HaarCascadeの場合 faceConfidence が1.0固定になるため、常に満点になります。
+	return (faceConfidence * FACE_WEIGHT_CONFIDENCE) 
+		+ (normSharpness * FACE_WEIGHT_SHARPNESS)
+		+ (normContrast * FACE_WEIGHT_CONTRAST);
+}
+
 // 任意のStatic Controlに cv::Mat を描画する共通関数
 void CFacialAttendance2026Dlg::DrawMatToStatic(int nID, const cv::Mat& mat)
 {
-    if (mat.empty()) return;
-    CWnd* pWnd = GetDlgItem(nID);
-    if (!pWnd) return;
+	CWnd* pWnd = GetDlgItem(nID);
+	if (!pWnd) return;
 
-    CClientDC dc(pWnd);
-    CRect rect;
-    pWnd->GetClientRect(&rect);
+	CClientDC dc(pWnd);
+	CRect rect;
+	pWnd->GetClientRect(&rect);
 
-    // ★一旦背景色で塗りつぶして、前回の写真や余白を綺麗に消す
-    dc.FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
+	// ★先に背景色で塗りつぶす（これによって、古い写真が完全に消えます）
+	dc.FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
 
-    HBITMAP hBmp = CreateBitmapFromMat(mat);
-    if (hBmp) {
-        CDC memDC;
-        memDC.CreateCompatibleDC(&dc);
-        HBITMAP hOld = (HBITMAP)memDC.SelectObject(hBmp);
+	// 画像が空の場合は背景を塗りつぶしただけで終了
+	if (mat.empty()) return;
 
-        // ★アスペクト比を維持して中央に配置するための計算
-        int srcW = mat.cols;
-        int srcH = mat.rows;
-        int dstW = rect.Width();
-        int dstH = rect.Height();
-        
-        int drawW = dstW;
-        int drawH = dstH;
-        int drawX = 0;
-        int drawY = 0;
+	HBITMAP hBmp = CreateBitmapFromMat(mat);
+	if (hBmp) {
+		CDC memDC;
+		memDC.CreateCompatibleDC(&dc);
+		HBITMAP hOld = (HBITMAP)memDC.SelectObject(hBmp);
 
-        double srcAspect = (double)srcW / (double)srcH;
-        double dstAspect = (double)dstW / (double)dstH;
+		// ★アスペクト比を維持して中央に配置するための計算
+		int srcW = mat.cols;
+		int srcH = mat.rows;
+		int dstW = rect.Width();
+		int dstH = rect.Height();
 
-        if (srcAspect > dstAspect) {
-            // 横長の画像の場合、上下に余白を作る
-            drawH = (int)(dstW / srcAspect);
-            drawY = (dstH - drawH) / 2;
-        } else {
-            // 縦長の画像の場合、左右に余白を作る
-            drawW = (int)(dstH * srcAspect);
-            drawX = (dstW - drawW) / 2;
-        }
+		int drawW = dstW;
+		int drawH = dstH;
+		int drawX = 0;
+		int drawY = 0;
 
-        // キレイに縮小・拡大して中央に描画
-        dc.SetStretchBltMode(COLORONCOLOR);
-        dc.StretchBlt(drawX, drawY, drawW, drawH, 
-                      &memDC, 0, 0, srcW, srcH, SRCCOPY);
+		double srcAspect = (double)srcW / (double)srcH;
+		double dstAspect = (double)dstW / (double)dstH;
 
-        memDC.SelectObject(hOld);
-        DeleteObject(hBmp);
-    }
+		if (srcAspect > dstAspect) {
+			// 横長の画像の場合、上下に余白を作る
+			drawH = (int)(dstW / srcAspect);
+			drawY = (dstH - drawH) / 2;
+		}
+		else {
+			// 縦長の画像の場合、左右に余白を作る
+			drawW = (int)(dstH * srcAspect);
+			drawX = (dstW - drawW) / 2;
+		}
+
+		// キレイに縮小・拡大して中央に描画
+		dc.SetStretchBltMode(COLORONCOLOR);
+		dc.StretchBlt(drawX, drawY, drawW, drawH,
+			&memDC, 0, 0, srcW, srcH, SRCCOPY);
+
+		memDC.SelectObject(hOld);
+		DeleteObject(hBmp);
+	}
 }
-
 void CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk()
 {
     m_bCapturing = false; // キャプチャ停止
@@ -1322,19 +1388,18 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk()
     GetDlgItem(IDC_BUTTON_CAMERA_ON)->EnableWindow(TRUE); 
 
     // 自分が Disable (無効化) される前に GotoDlgCtrl でフォーカスを Name フィールドへ移動させます。
-    // GotoDlgCtrl() は MFC がダイアログのフォーカスを正しく管理するための関数です。
     GotoDlgCtrl(GetDlgItem(IDC_COMBO_NAME));
 
     GetDlgItem(IDC_BUTTON_PHOTO_OK)->EnableWindow(FALSE);
 
     std::lock_guard<std::mutex> lock(m_bufferMutex);
     
-    // ★ ここで「前の結果」を強制的に画面から消し去ります！
+    // 前の結果を強制的に画面から消し去ります
     cv::Mat emptyMat;
     DrawMatToStatic(IDC_STATIC_FACE, emptyMat);
     DrawMatToStatic(IDC_STATIC_FACE_WORST, emptyMat);
     
-    // ★ スコアも空に戻す
+    // スコアも空に戻す
     SetDlgItemText(IDC_STATIC_FACE_SCORE, _T(""));
     SetDlgItemText(IDC_STATIC_FACE_WORST_SCORE, _T(""));
 
@@ -1343,38 +1408,40 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk()
         return;
     }
 
-	double maxSharpness = -1.0;
-	double minSharpness = 9999999.0;  // 最小値を探すための変数
+	// ----------------------------------------------------
+	// ★修正：重複していた変数をきれいに整理し、総合スコアで判定
+	// ----------------------------------------------------
+	double maxScore = -1.0;
+	double minScore = 9999999.0;
 	cv::Mat bestFace;
-	cv::Mat worstFace;                // 悪い顔写真を保持する変数
+	cv::Mat worstFace;
 
 	for (const auto& item : m_faceRingBuffer) {
-		// ベストショットの探出
-		if (item.sharpness > maxSharpness) {
-			maxSharpness = item.sharpness;
+		if (item.totalScore > maxScore) {
+			maxScore = item.totalScore;
 			bestFace = item.face112;
 		}
-
-		// ★ ワーストショット（一番ブレている写真）の探出
-		if (item.sharpness < minSharpness) {
-			minSharpness = item.sharpness;
+		if (item.totalScore < minScore) {
+			minScore = item.totalScore;
 			worstFace = item.face112;
 		}
 	}
 
-	// ベストショットを描画してスコア（数値のみ）を表示
+	// ベストショットを描画してスコアを表示 (100倍して分かりやすい数値に)
 	if (!bestFace.empty()) {
 		DrawMatToStatic(IDC_STATIC_FACE, bestFace);
 		CString strBestScore;
-		strBestScore.Format(_T("%.0f"), maxSharpness); // ★ "Score: "などの文字を削り、数値だけにする
+		// ★変更前: strBestScore.Format(_T("%.0f"), maxScore * 100.0);
+		strBestScore.Format(_T("%.2f"), maxScore * 100.0); // 小数点第2位まで表示
 		SetDlgItemText(IDC_STATIC_FACE_SCORE, strBestScore);
 	}
 
-	// ワーストショットを描画してスコア（数値のみ）を表示
+	// ワーストショットを描画してスコアを表示
 	if (!worstFace.empty()) {
 		DrawMatToStatic(IDC_STATIC_FACE_WORST, worstFace);
 		CString strWorstScore;
-		strWorstScore.Format(_T("%.0f"), minSharpness); // ★ こちらも数値だけにする
+		// ★変更前: strWorstScore.Format(_T("%.0f"), minScore * 100.0);
+		strWorstScore.Format(_T("%.2f"), minScore * 100.0); // 小数点第2位まで表示
 		SetDlgItemText(IDC_STATIC_FACE_WORST_SCORE, strWorstScore);
 	}
 }
