@@ -32,7 +32,10 @@
 #pragma region UI_Constants
 #	define UI_ID_TEXT_MAX_LENGTH 8
 #	define UI_COMMENT_TEXT_MAX_LENGTH 200
-#	define UI_FIELD_HEIGHT 32
+#	define UI_FIELD_HEIGHT 28
+#   define UI_LIST_FONT_SIZE 16
+#   define UI_FONT_NAME L"Segoe UI"
+#   define UI_FONT_NAME_FIXED L"Tahoma"
 #pragma endregion
 
 

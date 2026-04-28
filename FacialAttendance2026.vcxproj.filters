@@ -48,6 +48,9 @@
     <ClInclude Include="AdaptiveScreenLight.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FaceIdentifier.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FacialAttendance2026.cpp">
@@ -68,6 +71,9 @@
     <ClCompile Include="AdaptiveScreenLight.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="FaceIdentifier.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FacialAttendance2026.rc">
@@ -78,6 +84,7 @@
     <None Include="res\FacialAttendance2026.rc2">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="FacialAttendance2026Dlg.cpp (OnInitDialog の末尾)" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\FacialAttendance2026.ico">

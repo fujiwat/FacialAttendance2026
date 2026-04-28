@@ -104,7 +104,22 @@ BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
 	ON_WM_INITMENUPOPUP()
 	ON_COMMAND(ID_FACEDETECTION_SHOWFOLDER, &CFacialAttendance2026Dlg::OnFacedetectionShowfolder)
 	ON_BN_CLICKED(IDC_BUTTON_PHOTO_OK,  &CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk)
+	ON_COMMAND(ID_FACEIDENTIFICATION_EIGENFACES, &CFacialAttendance2026Dlg::OnFaceidentificationEigenfaces)
+	ON_COMMAND(ID_FACEIDENTIFICATION_LBPH, &CFacialAttendance2026Dlg::OnFaceidentificationLbph)
+	ON_COMMAND(ID_FACEIDENTIFICATION_SFACE, &CFacialAttendance2026Dlg::OnFaceidentificationSface)
+	ON_UPDATE_COMMAND_UI(ID_FACEIDENTIFICATION_EIGENFACES, &CFacialAttendance2026Dlg::OnUpdateFaceidentificationEigenfaces)
+	ON_UPDATE_COMMAND_UI(ID_FACEIDENTIFICATION_LBPH, &CFacialAttendance2026Dlg::OnUpdateFaceidentificationLbph)
+	ON_UPDATE_COMMAND_UI(ID_FACEIDENTIFICATION_SFACE, &CFacialAttendance2026Dlg::OnUpdateFaceidentificationSface)
+
+	// ==========================================
+	// ★追加: テキスト全選択のためのメッセージマップ
+	// ==========================================
+	ON_CBN_SETFOCUS(IDC_COMBO_NAME,   &CFacialAttendance2026Dlg::OnCbnSetfocusComboName)
+	ON_EN_SETFOCUS(IDC_EDIT_USER_ID,  &CFacialAttendance2026Dlg::OnEnSetfocusEditId)
+	ON_EN_SETFOCUS(IDC_EDIT_COMMENT,  &CFacialAttendance2026Dlg::OnEnSetfocusEditComment)
+
 END_MESSAGE_MAP()
+
 
 // --- ★ここから追加（Windowsからカメラ名を取得する関数） ---
 std::vector<CString> GetCameraNames()
@@ -190,7 +205,7 @@ std::vector<CString> GetCameraNames()
 	int x = (screenWidth - rectWindow.Width()) / 2;
 	SetWindowPos(NULL, x, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
 
-	// --- 分割した初期化関数の呼び出し ---
+	// --- 初期化関数の呼び出し ---
 	InitializeCameraList();
 	InitializeWorkerThread();
 	InitializeFontsAndUI();
@@ -198,6 +213,11 @@ std::vector<CString> GetCameraNames()
 	InitializeListControl();
 	InitializeScreenLightSettings();
 	InitializeMenuSettings();
+
+	// ★追加: Face Identifier の初期化
+	// 現時点ではモデルファイルが存在しないため空文字を渡します
+	m_identifier.Initialize("");
+
 	// アプリ起動時はキャプチャを有効にし、バッファを空にしておく
 	{
 		std::lock_guard<std::mutex> lock(m_bufferMutex);
@@ -211,8 +231,29 @@ std::vector<CString> GetCameraNames()
 	// ボタンの初期状態の設定（Camera ON を無効、Photo OK を有効にする）
 	GetDlgItem(IDC_BUTTON_CAMERA_ON)->EnableWindow(FALSE);
 	GetDlgItem(IDC_BUTTON_PHOTO_OK)->EnableWindow(TRUE);
+	EnableInputFields(FALSE);		// ★追加: 起動時は入力操作パネルを無効（Disable）にする
 
 	return TRUE;
+}
+
+
+void CFacialAttendance2026Dlg::EnableInputFields(BOOL bEnable)
+{
+	// 操作したい対象のコントロールIDを配列にまとめる
+	const int targetIDs[] = {
+		IDC_COMBO_NAME,
+		IDC_EDIT_USER_ID,
+		IDC_EDIT_TIME,
+		IDC_EDIT_COMMENT,
+		IDC_BUTTON_CONFIRM
+	};
+
+	for (int nID : targetIDs) {
+		CWnd* pWnd = GetDlgItem(nID);
+		if (pWnd && pWnd->GetSafeHwnd()) {
+			pWnd->EnableWindow(bEnable);
+		}
+	}
 }
 
 void CFacialAttendance2026Dlg::InitializeCameraList()
@@ -277,62 +318,8 @@ void CFacialAttendance2026Dlg::InitializeWorkerThread()
 
 						// キャプチャ動作中で、かつ顔が一つでも検出された場合
 						if (m_bCapturing && faceDetected && !bestFaceData.empty()) {
-							
-							// ★追加: 15要素の配列から、これまで使っていた変数（RectとConfidence）を復元する
-							cv::Rect targetFaceRect(
-								static_cast<int>(bestFaceData[0]),
-								static_cast<int>(bestFaceData[1]),
-								static_cast<int>(bestFaceData[2]),
-								static_cast<int>(bestFaceData[3])
-							);
-							double faceConfidence = static_cast<double>(bestFaceData[14]);
-
-							if (targetFaceRect.width > 0 && targetFaceRect.height > 0) {
-                                // ---- これ以降は今まで通りの切り出し処理 ----
-								int cx = targetFaceRect.x + targetFaceRect.width / 2;
-								int cy = targetFaceRect.y + targetFaceRect.height / 2;
-								int sideLength = std::max(targetFaceRect.width, targetFaceRect.height);
-
-								// 枠が画面外にはみ出さないよう安全に計算
-								int x = std::max(0, cx - sideLength / 2);
-								int y = std::max(0, cy - sideLength / 2);
-								int w = std::min(displayFrame.cols - x, sideLength);
-								int h = std::min(displayFrame.rows - y, sideLength);
-
-								// ここでもし画面端で正方形にならなかった場合、もう一度短い方に合わせて完全な正方形にする
-								int finalSide = std::min(w, h);
-
-								if (finalSide > 0) {
-									// 正方形で切り出す
-									cv::Mat cropFace(resizedFrame, cv::Rect(x, y, finalSide, finalSide));
-									cv::Mat alignedFace;
-									
-									// 112x112 にサイズを正規化（正方形から正方形なので一切歪まない！）
-									cv::resize(cropFace, alignedFace, cv::Size(FACE_NORM_SIZE, FACE_NORM_SIZE));
-									double sharpness = CalculateSharpness(alignedFace);
-									double contrast = CalculateContrast(alignedFace);
-									double totalScore = CalculateBestFaceScore(sharpness, faceConfidence, contrast);
-
-									FaceBufferItem item;
-									item.face112 = alignedFace.clone();       // 今まで通りの正方形画像
-									item.rawFrame = resizedFrame.clone();     // ★追加: SFaceで後から計算するための元画像
-									item.faceData = bestFaceData;             // ★追加: ラントマーク入り配列
-									item.sharpness = sharpness;
-									item.confidence = faceConfidence;
-									item.contrast = contrast;
-									item.totalScore = totalScore;
-									// ロックして配列の末尾に追加する処理
-									{
-										std::lock_guard<std::mutex> lock(m_bufferMutex);
-										m_faceRingBuffer.push_back(item);
-
-										// 300個(MAX_FACE_RING_BUFFER)を超えたら一番古いものを消す
-										if (m_faceRingBuffer.size() > MAX_FACE_RING_BUFFER) {
-											m_faceRingBuffer.pop_front();
-										}
-									}
-								}
-							}
+							// ★スッキリ！処理を別関数に切り離し
+							ProcessAndBufferDetectedFace(displayFrame, resizedFrame, bestFaceData);
 						}
 						// --- Ring Buffer への顔画像保存 ここまで ---
 
@@ -373,7 +360,7 @@ void CFacialAttendance2026Dlg::InitializeFontsAndUI()
 	HDC hdc = ::GetDC(NULL);
 	lf.lfHeight = -MulDiv(18, GetDeviceCaps(hdc, LOGPIXELSY), 72);
 	::ReleaseDC(NULL, hdc);
-	_tcscpy_s(lf.lfFaceName, _T("Segoe UI"));
+	_tcscpy_s(lf.lfFaceName, UI_FONT_NAME);
 
 	lf.lfWeight = FW_HEAVY;
 	m_fontBold.DeleteObject();
@@ -407,14 +394,20 @@ void CFacialAttendance2026Dlg::InitializeFontsAndUI()
 void CFacialAttendance2026Dlg::InitializeInputFields()
 {
 	LOGFONT lf;
+	GetFont()->GetLogFont(&lf);
+
+	// 1. IDC_COMBO_NAME と IDC_EDIT_COMMENT 用 (デフォルトフォント)
+	static CFont s_fontDefaultField;
+	s_fontDefaultField.DeleteObject();
+	lf.lfHeight = UI_FIELD_HEIGHT;
+	s_fontDefaultField.CreateFontIndirect(&lf);
+
+	m_comboName.SetFont(&s_fontDefaultField);
+	m_editComment.SetFont(&s_fontDefaultField);
 	m_comboName.SetItemHeight(-1, UI_FIELD_HEIGHT);
 
-	GetFont()->GetLogFont(&lf);
-	wcscpy_s(lf.lfFaceName, _T("Tahoma")); 
-
-	m_fontFixedList.DeleteObject();
-	m_fontFixedList.CreateFontIndirect(&lf);
-
+	// 2. IDC_EDIT_USER_ID と IDC_EDIT_TIME 用 (Consolas)
+	wcscpy_s(lf.lfFaceName, UI_FONT_NAME_FIXED);
 	lf.lfHeight = UI_FIELD_HEIGHT;
 	m_fontFixed.DeleteObject();
 	m_fontFixed.CreateFontIndirect(&lf);
@@ -422,6 +415,7 @@ void CFacialAttendance2026Dlg::InitializeInputFields()
 	m_editID.SetFont(&m_fontFixed);
 	m_editTime.SetFont(&m_fontFixed);
 
+	// スタイルとその他の設定
 	m_editID.ModifyStyleEx(0, WS_EX_CLIENTEDGE, SWP_FRAMECHANGED);
 	m_editID.SetWindowPos(NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
@@ -441,7 +435,18 @@ void CFacialAttendance2026Dlg::InitializeListControl()
 {
 	CListCtrl* pListCtrl = (CListCtrl*)GetDlgItem(IDC_ATTENDEES_LIST);
 	if (pListCtrl != nullptr) {
+		// リスト用フォントの作成 (Tahoma, UI_LIST_FONT_SIZE)
+		LOGFONT lf;
+		GetFont()->GetLogFont(&lf);
+		wcscpy_s(lf.lfFaceName, _T("Tahoma"));
+		lf.lfHeight = UI_LIST_FONT_SIZE; // ※MyConst.h で定義を追加してください
+
+		m_fontFixedList.DeleteObject();
+		m_fontFixedList.CreateFontIndirect(&lf);
+
 		pListCtrl->SetFont(&m_fontFixedList);
+
+		// リストのスタイル設定
 		pListCtrl->ModifyStyle(LVS_TYPEMASK, LVS_REPORT);
 		pListCtrl->SetExtendedStyle(pListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT);
 
@@ -450,7 +455,6 @@ void CFacialAttendance2026Dlg::InitializeListControl()
 		pListCtrl->InsertColumn(2, _T("ID"), LVCFMT_LEFT, 90);
 	}
 }
-
 void CFacialAttendance2026Dlg::InitializeScreenLightSettings()
 {
 	PostMessage(WM_APP + 2, 0, 0);
@@ -491,13 +495,15 @@ void CFacialAttendance2026Dlg::InitializeScreenLightSettings()
 void CFacialAttendance2026Dlg::InitializeMenuSettings()
 {
 	m_faceDetectionMode = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, 2);	// 0:Haar, 1:Yunet, 2:Both
+	m_faceIdentificationMode = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, _T("FaceIdentificationMode"), 2);
 }
 
 void CFacialAttendance2026Dlg::UpdateIdentificationFields(CString name)
 {
 	// 1. Nameの設定
 	if (name.CompareNoCase(_T("Unknown")) == 0) {
-		m_comboName.SetWindowText(_T("")); // Unknownならブランク
+//		m_comboName.SetWindowText(_T("")); // Unknownならブランク
+		m_comboName.SetWindowText(name);
 	}
 	else {
 		m_comboName.SetWindowText(name);
@@ -507,15 +513,17 @@ void CFacialAttendance2026Dlg::UpdateIdentificationFields(CString name)
 		}
 	}
 
-	// 2. IDは常にブランクで初期化
-	m_editID.SetWindowText(_T(""));
-
-	// 3. 認識した時刻を表示 (★秒を消して HH:mm にする)
+	// 2. 認識した時刻を表示
 	CTime now = CTime::GetCurrentTime();
-	m_editTime.SetWindowText(now.Format(_T("%H:%M")));
+	
+	// ★修正ここから: 文字列ではなく CTime を直接セットする
+	m_editTime.SetTime(&now); 
+	// ★修正ここまで
 
-	// 4. Commentはクリア
-	m_editComment.SetWindowText(_T(""));
+	// ★追加: テキストを更新したあと、強制的に画面の再描画をかける
+	m_editTime.Invalidate(FALSE);
+	m_editTime.UpdateWindow();
+
 }
 
 void CFacialAttendance2026Dlg::OnSysCommand(UINT nID, LPARAM lParam)
@@ -752,8 +760,8 @@ void CFacialAttendance2026Dlg::ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& 
 	int dstH = m_detector.GetFrameHeight();
 
 	if (dstW > 0 && dstH > 0 && srcW > 0 && srcH > 0) {
-		double srcAspect = (double)srcW / srcH;
-		double dstAspect = (double)dstW / dstH;
+		double srcAspect = (double)srcW / (double)srcH;
+		double dstAspect = (double)dstW / (double)dstH;
 		cv::Rect cropRect;
 
 		if (srcAspect > dstAspect) {
@@ -835,7 +843,7 @@ bool CFacialAttendance2026Dlg::PerformFaceDetection(cv::Mat& displayFrame, cv::M
 	}
 
 	// YuNet (モード 1 または 2)
-	if (currentMode == 1 || currentMode == 2) {
+if (currentMode == 1 || currentMode == 2) {
 		m_detector.DetectFacesYunet(resizedFrame, outFaces);
 		m_detector.DrawBoundingBoxesYunet(displayFrame, outFaces);
 		if (!outFaces.empty() && outFaces.rows > 0) {
@@ -872,6 +880,82 @@ bool CFacialAttendance2026Dlg::PerformFaceDetection(cv::Mat& displayFrame, cv::M
 	}
 
 	return faceDetected;
+}
+
+void CFacialAttendance2026Dlg::ProcessAndBufferDetectedFace(const cv::Mat& displayFrame, const cv::Mat& resizedFrame, const std::vector<float>& bestFaceData)
+{
+    // ★追加: 15要素の配列から、これまで使っていた変数（RectとConfidence）を復元する
+    cv::Rect targetFaceRect(
+        static_cast<int>(bestFaceData[0]),
+        static_cast<int>(bestFaceData[1]),
+        static_cast<int>(bestFaceData[2]),
+        static_cast<int>(bestFaceData[3])
+    );
+    double faceConfidence = static_cast<double>(bestFaceData[14]);
+
+    if (targetFaceRect.width > 0 && targetFaceRect.height > 0) {
+        // ---- これ以降は今まで通りの切り出し処理 ----
+        int cx = targetFaceRect.x + targetFaceRect.width / 2;
+        int cy = targetFaceRect.y + targetFaceRect.height / 2;
+        int sideLength = std::max(targetFaceRect.width, targetFaceRect.height);
+
+        // 枠が画面外にはみ出さないよう安全に計算
+        int x = std::max(0, cx - sideLength / 2);
+        int y = std::max(0, cy - sideLength / 2);
+        int w = std::min(displayFrame.cols - x, sideLength);
+        int h = std::min(displayFrame.rows - y, sideLength);
+
+        // ここでもし画面端で正方形にならなかった場合、もう一度短い方に合わせて完全な正方形にする
+        int finalSide = std::min(w, h);
+
+        if (finalSide > 0) {
+            // 表示とスコア計算用 (112x112) の単純切り抜き
+            cv::Mat cropFace(resizedFrame, cv::Rect(x, y, finalSide, finalSide));
+            cv::Mat simpleFace112;
+            cv::resize(cropFace, simpleFace112, cv::Size(FACE_NORM_SIZE, FACE_NORM_SIZE));
+            
+            double sharpness = CalculateSharpness(simpleFace112);
+            double contrast = CalculateContrast(simpleFace112);
+            double totalScore = CalculateBestFaceScore(sharpness, faceConfidence, contrast);
+
+            // ★ SFace回転補正用の "のりしろ" 付き軽量画像を生成してメモリ節約 ★
+            int padSide = static_cast<int>(finalSide * 1.5); // 顔の1.5倍の領域をのりしろとして確保
+            int padX = std::max(0, cx - padSide / 2);
+            int padY = std::max(0, cy - padSide / 2);
+            int padW = std::min(resizedFrame.cols - padX, padSide);
+            int padH = std::min(resizedFrame.rows - padY, padSide);
+            
+            cv::Mat paddedCrop = resizedFrame(cv::Rect(padX, padY, padW, padH)).clone();
+
+            // ランドマーク(目鼻口の座標)を、切り抜いた paddedCrop 基準にシフト(マイナス)する
+            std::vector<float> shiftedFaceData = bestFaceData;
+            shiftedFaceData[0] -= padX; // x
+            shiftedFaceData[1] -= padY; // y
+            for (int i = 4; i < 14; i += 2) {
+                shiftedFaceData[i] -= padX;     // landmarks_x
+                shiftedFaceData[i + 1] -= padY; // landmarks_y
+            }
+
+            FaceBufferItem item;
+            item.face112 = simpleFace112;            // 画面表示・リストアイコン用の112画像
+            item.rawFrame = paddedCrop;              // 画面全体ではなく「のりしろ付き顔領域」だけを保存
+            item.faceData = shiftedFaceData;         // シフト補正済みの座標
+            item.sharpness = sharpness;
+            item.confidence = faceConfidence;
+            item.contrast = contrast;
+            item.totalScore = totalScore;
+            // ロックして配列の末尾に追加する処理
+            {
+                std::lock_guard<std::mutex> lock(m_bufferMutex);
+                m_faceRingBuffer.push_back(item);
+
+                // 300個(MAX_FACE_RING_BUFFER)を超えたら一番古いものを消す
+                if (m_faceRingBuffer.size() > MAX_FACE_RING_BUFFER) {
+                    m_faceRingBuffer.pop_front();
+                }
+            }
+        }
+    }
 }
 
 void CFacialAttendance2026Dlg::UpdateFpsAndLatency(double fps)
@@ -1088,18 +1172,31 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonConfirm()
 		pListCtrl->SetItemText(rowIndex, 2, strID);       // 2列目: ID
 	}
 
+    // ★追加: ここでメモリ上の辞書(SFace識別器)に顔を追加登録する (Incremental Enrollment)
+    // ただし、もし名前が空だったり "Unknown" 指定のままConfirmした場合は登録しない
+    if (!m_bestItem.rawFrame.empty() && strName.CompareNoCase(_T("Unknown")) != 0) {
+        // CString から std::string への変換 (Trim適用済のstrNameを使用)
+        CT2CA pszConvertedAnsiString(strName);
+        std::string stdName(pszConvertedAnsiString);
+        
+        FaceIdentificationMethod method = static_cast<FaceIdentificationMethod>(m_faceIdentificationMode);
+        // ★ 登録(Enroll)時も、パディング付き画像と座標を渡して完璧な正面顔を作らせてから登録する
+        m_identifier.Enroll(method, stdName, m_bestItem.rawFrame, m_bestItem.faceData);
+    }
+
 	// --- 4. CSVファイルへの書き込み (追記モード) ---
 	SaveAttendanceToCsv(strTime, strName, strID, strComment);
 
-	// 5. 完了メッセージ（任意で入力欄のクリア等）
-	AfxMessageBox(_T("Attendance record saved successfully."));
-	
-	// 入力欄をクリアして次の人に備える処理を入れる場合はここに追加します
-	// m_comboName.SetWindowText(_T(""));
-	// m_editID.SetWindowText(_T(""));
+	// 入力欄をクリアして次の人に備える
+	m_comboName.SetWindowText(_T(""));
+	m_editID.SetWindowText(_T("")),
+	m_editComment.SetWindowText(_T(""));
+
+
+    // ★追加: 確認完了したら自動的に次の人のキャプチャを再起動する（Camera ONボタンを押したのと同じ挙動）
+    OnBnClickedButtonCameraOn();
 }
 
-// --- ★ここから移動: CSVファイルへの保存処理 ---
 void CFacialAttendance2026Dlg::SaveAttendanceToCsv(const CString& strTime, const CString& strName, const CString& strID, const CString& strComment)
 {
 	std::wstring csvPath = GetAttendanceCsvPath(); // MyFunctions.cpp で作成した関数
@@ -1260,7 +1357,7 @@ void CFacialAttendance2026Dlg::FlushAndResetEvaluationData()
             equivalentFps = 1000.0 / avgLatencyMs; // これまでの理論FPS
         }
 
-        // CSVファイルへ保存：純粋な推論時間(avgLatencyMs)と、現実のFPSの平均を出す場合はこれ
+        // CSVファイルへ保存：純粋な推論時間(avgLatencyMs)と、現実のFPSの平均を出す場合
         // もし現実のFPSを出したい場合は、fpsCounterの値を足し込むようにコードの計測位置をループの先頭に出す必要があります。
         
         SaveEvaluationLatencyCsv(m_faceDetectionMode, avgLatencyMs, equivalentFps);
@@ -1381,45 +1478,41 @@ void CFacialAttendance2026Dlg::DrawMatToStatic(int nID, const cv::Mat& mat)
 		DeleteObject(hBmp);
 	}
 }
+
 void CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk()
 {
     m_bCapturing = false; // キャプチャ停止
 
     GetDlgItem(IDC_BUTTON_CAMERA_ON)->EnableWindow(TRUE); 
+	EnableInputFields(TRUE);
 
-    // 自分が Disable (無効化) される前に GotoDlgCtrl でフォーカスを Name フィールドへ移動させます。
-    GotoDlgCtrl(GetDlgItem(IDC_COMBO_NAME));
-
-    GetDlgItem(IDC_BUTTON_PHOTO_OK)->EnableWindow(FALSE);
+	SetDefID(IDC_BUTTON_CONFIRM);
+	GetDlgItem(IDC_BUTTON_PHOTO_OK)->EnableWindow(FALSE); // GotoDlgCtrlはここから移動しました
 
     std::lock_guard<std::mutex> lock(m_bufferMutex);
     
-    // 前の結果を強制的に画面から消し去ります
+    // 表示のクリア
     cv::Mat emptyMat;
     DrawMatToStatic(IDC_STATIC_FACE, emptyMat);
     DrawMatToStatic(IDC_STATIC_FACE_WORST, emptyMat);
-    
-    // スコアも空に戻す
     SetDlgItemText(IDC_STATIC_FACE_SCORE, _T(""));
-    SetDlgItemText(IDC_STATIC_FACE_WORST_SCORE, _T(""));
+	SetDlgItemText(IDC_STATIC_FACE_WORST_SCORE, _T(""));
 
     if (m_faceRingBuffer.empty()) {
         MyMessageBoxW(GetSafeHwnd(), MB_OK | MB_ICONINFORMATION, g_wAppNameLong, L"顔が検出されていません。");
         return;
     }
 
-	// ----------------------------------------------------
-	// ★修正：重複していた変数をきれいに整理し、総合スコアで判定
-	// ----------------------------------------------------
 	double maxScore = -1.0;
 	double minScore = 9999999.0;
 	cv::Mat bestFace;
 	cv::Mat worstFace;
-
+    
 	for (const auto& item : m_faceRingBuffer) {
 		if (item.totalScore > maxScore) {
 			maxScore = item.totalScore;
 			bestFace = item.face112;
+            m_bestItem = item; // 評価がベストのものを保持
 		}
 		if (item.totalScore < minScore) {
 			minScore = item.totalScore;
@@ -1427,23 +1520,32 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk()
 		}
 	}
 
-	// ベストショットを描画してスコアを表示 (100倍して分かりやすい数値に)
+	// ベストショットを描画してスコアを表示
 	if (!bestFace.empty()) {
 		DrawMatToStatic(IDC_STATIC_FACE, bestFace);
 		CString strBestScore;
-		// ★変更前: strBestScore.Format(_T("%.0f"), maxScore * 100.0);
-		strBestScore.Format(_T("%.2f"), maxScore * 100.0); // 小数点第2位まで表示
+		strBestScore.Format(_T("%.2f"), maxScore * 100.0);
 		SetDlgItemText(IDC_STATIC_FACE_SCORE, strBestScore);
+
+        FaceIdentificationMethod method = static_cast<FaceIdentificationMethod>(m_faceIdentificationMode);
+        
+        // 識別器に画像の登録情報を渡して識別
+        IdentificationResult result = m_identifier.Identify(method, m_bestItem.rawFrame, m_bestItem.faceData);
+
+        CString strName(result.name.c_str());
+        UpdateIdentificationFields(strName);
 	}
 
 	// ワーストショットを描画してスコアを表示
 	if (!worstFace.empty()) {
 		DrawMatToStatic(IDC_STATIC_FACE_WORST, worstFace);
 		CString strWorstScore;
-		// ★変更前: strWorstScore.Format(_T("%.0f"), minScore * 100.0);
-		strWorstScore.Format(_T("%.2f"), minScore * 100.0); // 小数点第2位まで表示
+		strWorstScore.Format(_T("%.2f"), minScore * 100.0);
 		SetDlgItemText(IDC_STATIC_FACE_WORST_SCORE, strWorstScore);
 	}
+
+    // ★修正: すべて終わった、一番最後のタイミングで名前欄にフォーカス！
+    GotoDlgCtrl(GetDlgItem(IDC_COMBO_NAME));
 }
 
 // --- Camera ON ボタンの処理 ---
@@ -1454,14 +1556,19 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonCameraOn()
 		std::lock_guard<std::mutex> lock(m_bufferMutex);
 		m_faceRingBuffer.clear();
 	}
-	// 無効化する前にフォーカスを移動（Escキー対策）
-	GotoDlgCtrl(GetDlgItem(IDC_BUTTON_PHOTO_OK));
+	EnableInputFields(FALSE);
 
-	// ボタンの有効/無効を切り替え
-    GetDlgItem(IDC_BUTTON_PHOTO_OK)->EnableWindow(TRUE);    
-	SetDefID(IDC_BUTTON_PHOTO_OK);
+	// ① まず Photo OK ボタンを「有効」にする
+	GetDlgItem(IDC_BUTTON_PHOTO_OK)->EnableWindow(TRUE);
 
-    GetDlgItem(IDC_BUTTON_CAMERA_ON)->EnableWindow(FALSE);
+	// ② 強力にデフォルトボタンを指定（MFCのSetDefIDだけでなく、Windows APIレベルで確実に設定）
+	SendMessage(DM_SETDEFID, IDC_BUTTON_PHOTO_OK, 0);
+
+	// ③ 有効になった Photo OK ボタンへ確実にフォーカスをジャンプさせる
+	GetDlgItem(IDC_BUTTON_PHOTO_OK)->SetFocus();
+
+	// ④ その後で不要になった Camera ON ボタンを「無効」にする
+	GetDlgItem(IDC_BUTTON_CAMERA_ON)->EnableWindow(FALSE);
 
 
     // 2. 右側（ベスト／ワースト写真）の表示をグレーに戻したい場合はここで消去
@@ -1470,10 +1577,69 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonCameraOn()
     DrawMatToStatic(IDC_STATIC_FACE_WORST, emptyMat);
 
     // ★ テキストのスコアも一緒に消去してリセットする
-    SetDlgItemText(IDC_STATIC_FACE_SCORE, _T(""));
-    SetDlgItemText(IDC_STATIC_FACE_WORST_SCORE, _T(""));
+	SetDlgItemText(IDC_STATIC_FACE_SCORE, _T(""));
+	SetDlgItemText(IDC_STATIC_FACE_WORST_SCORE, _T("[未認識]"));
 
     // 3. フラグを true に戻し、眠っているスレッドに「起きろ」とシグナルを送信する
     m_bCapturing = true;
     m_pauseCV.notify_one(); 
 } // --- 関数終了 ---
+
+// --- Face Identification モード切り替え処理 ---
+void CFacialAttendance2026Dlg::OnFaceidentificationEigenfaces()
+{
+	m_faceIdentificationMode = 0;
+	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, _T("FaceIdentificationMode"), m_faceIdentificationMode);
+}
+
+void CFacialAttendance2026Dlg::OnFaceidentificationLbph()
+{
+	m_faceIdentificationMode = 1;
+	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, _T("FaceIdentificationMode"), m_faceIdentificationMode);
+}
+
+void CFacialAttendance2026Dlg::OnFaceidentificationSface()
+{
+	m_faceIdentificationMode = 2;
+	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, _T("FaceIdentificationMode"), m_faceIdentificationMode);
+}
+
+// --- Face Identification チェックマーク更新処理 ---
+void CFacialAttendance2026Dlg::OnUpdateFaceidentificationEigenfaces(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio(m_faceIdentificationMode == 0); // ラジオボタンスタイルであれば SetRadio を推奨
+}
+
+void CFacialAttendance2026Dlg::OnUpdateFaceidentificationLbph(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio(m_faceIdentificationMode == 1);
+}
+
+void CFacialAttendance2026Dlg::OnUpdateFaceidentificationSface(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio(m_faceIdentificationMode == 2);
+}
+
+// --- Face Identification のメニュー更新処理 終わり ---
+
+// ===========================================================================
+// ★追加: フォーカスが当たったときに「全選択」状態（ハイライト）にする今風のUI処理
+// ===========================================================================
+
+void CFacialAttendance2026Dlg::OnCbnSetfocusComboName()
+{
+    // Name欄のテキストをすべて選択状態にする
+    m_comboName.SetEditSel(0, -1);
+}
+
+void CFacialAttendance2026Dlg::OnEnSetfocusEditId()
+{
+    // ID欄のテキストをすべて選択状態にする
+    m_editID.SetSel(0, -1, TRUE);
+}
+
+void CFacialAttendance2026Dlg::OnEnSetfocusEditComment()
+{
+    // コメント欄のテキストをすべて選択状態にする
+    m_editComment.SetSel(0, -1, TRUE);
+}

@@ -201,6 +201,7 @@
   <ItemGroup>
     <ClInclude Include="AdaptiveScreenLight.h" />
     <ClInclude Include="FaceDetector.h" />
+    <ClInclude Include="FaceIdentifier.h" />
     <ClInclude Include="FacialAttendance2026.h" />
     <ClInclude Include="FacialAttendance2026Dlg.h" />
     <ClInclude Include="framework.h" />
@@ -214,6 +215,7 @@
   <ItemGroup>
     <ClCompile Include="AdaptiveScreenLight.cpp" />
     <ClCompile Include="FaceDetector.cpp" />
+    <ClCompile Include="FaceIdentifier.cpp" />
     <ClCompile Include="FacialAttendance2026.cpp" />
     <ClCompile Include="FacialAttendance2026Dlg.cpp" />
     <ClCompile Include="MyFunctions.cpp" />
@@ -228,6 +230,7 @@
     <ResourceCompile Include="FacialAttendance2026.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="FacialAttendance2026Dlg.cpp (OnInitDialog の末尾)" />
     <None Include="res\FacialAttendance2026.rc2" />
   </ItemGroup>
   <ItemGroup>

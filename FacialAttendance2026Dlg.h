@@ -3,6 +3,7 @@
 
 #pragma once
 #include "FaceDetector.h"
+#include "FaceIdentifier.h" // ★追加
 #include "AdaptiveScreenLight.h"
 #include <atomic>
 #include <mutex>
@@ -70,23 +71,29 @@ protected:
     afx_msg void OnRadioSlNone();
     afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
     afx_msg void OnBnClickedButtonConfirm();
+
+    // ★追加: 消えてしまった設計図を復活！
+    afx_msg void OnBnClickedButtonPhotoOk();    
+    afx_msg void OnBnClickedButtonCameraOn();
+
     afx_msg void OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL bSysMenu);
 
     DECLARE_MESSAGE_MAP()
 
 private:
     int m_faceDetectionMode = 2; // 0:Haar, 1:Yunet, 2:Both
+    int m_faceIdentificationMode = 2; // (0:Eigenface, 1:LBPH, 2:SFace)
     CComboBox    m_comboCamera;
     CSliderCtrl  m_sliderScreenLight;
     CComboBox    m_comboName;
     CEdit        m_editID;
-    // ★ CMFCMaskedEdit から CDateTimeCtrl に変更
     CDateTimeCtrl m_editTime;
     CEdit        m_editComment;
     int          m_currentCameraIdx;
     bool         m_shouldChangeCamera;
 
     FaceDetector m_detector;
+    FaceIdentifier m_identifier; // ★追加: 識別器のインスタンス
     std::mutex   m_frameMutex;
     cv::Mat      m_lastFrame;
     UINT_PTR     m_timerId;
@@ -98,6 +105,7 @@ private:
 
     std::deque<FaceBufferItem> m_faceRingBuffer; // リングバッファ
     std::mutex m_bufferMutex;                    // バッファ操作用の排他制御
+    FaceBufferItem             m_bestItem;       // ★追加: Confirm時にEnrollするため、PhotoOK時のベスト画像を保持
     std::atomic<bool> m_bCapturing;
     std::atomic<int>  m_discardFrames{ 0 }; // ★追加: 捨てるフレーム数
 
@@ -134,6 +142,7 @@ private:
     void InitializeWorkerThread();
     void InitializeFontsAndUI();
     void InitializeInputFields();
+    void EnableInputFields(BOOL bEnable); // ★追加: 入力欄の有効/無効を一括切り替え
     void InitializeListControl();
     void InitializeScreenLightSettings();
     void InitializeMenuSettings();
@@ -147,11 +156,20 @@ private:
     std::atomic<uint64_t> m_totalFrames{ 0 };
     std::atomic<double>   m_totalLatencyMs{ 0.0 };
 
-    // === Worker Thread 抽出用ヘルパー関数 ===
+    // ヘルパ関数の追加
     void ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& outResizedFrame, cv::Mat& outDisplayFrame);
-    
-    // ★変更: centerFaceRect, outFaceConfidence をやめ、15要素の配列 outBestFaceData で返すようにする
     bool PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces, std::vector<float>& outBestFaceData);
+    
+    // ★追加: 顔が検出されたあとの切り出し・評価・バッファリングを行うヘルパー
+    void ProcessAndBufferDetectedFace(const cv::Mat& displayFrame, const cv::Mat& resizedFrame, const std::vector<float>& bestFaceData);
+    
+    // ---------- ココから ----------
+    double CalculateSharpness(const cv::Mat& img);
+    double CalculateContrast(const cv::Mat& img);
+    double CalculateBestFaceScore(double sharpness, double faceConfidence, double contrast);
+    void DrawMatToStatic(int nID, const cv::Mat& mat);
+    // ---------- ココまでを追加 ----------
+
     void UpdateFpsAndLatency(double fps);
     void UpdateScreenLightUsingFaces(const cv::Mat& resizedFrame, const cv::Mat& faces);
 
@@ -173,12 +191,15 @@ public:
     afx_msg void OnUpdateFacedetectionYunet(CCmdUI* pCmdUI);
     afx_msg void OnUpdateFacedetectionBoth(CCmdUI* pCmdUI);
     afx_msg void OnFacedetectionShowfolder();
-    afx_msg void OnBnClickedButtonPhotoOk();
-    afx_msg void OnBnClickedButtonCameraOn();   
+    afx_msg void OnFaceidentificationEigenfaces();
+    afx_msg void OnFaceidentificationLbph();
+    afx_msg void OnFaceidentificationSface();
+    afx_msg void OnUpdateFaceidentificationEigenfaces(CCmdUI* pCmdUI);
+    afx_msg void OnUpdateFaceidentificationLbph(CCmdUI* pCmdUI);
+    afx_msg void OnUpdateFaceidentificationSface(CCmdUI* pCmdUI);
 
-    double CalculateSharpness(const cv::Mat& img);                   // 鮮明度を計算する関数
-    double CalculateContrast(const cv::Mat& img);                      // コントラストの計算
-    double CalculateBestFaceScore(double sharpness, double faceConfidence, double contrast); // ベストスコアの計算
-
-    void DrawMatToStatic(int nID, const cv::Mat& mat);               // 任意のStaticコントロールにcv::Matを描画する共通関数
+    // ★追加: テキストフィールドがフォーカスを受け取ったときの「全選択」処理用
+    afx_msg void OnCbnSetfocusComboName();
+    afx_msg void OnEnSetfocusEditId();
+    afx_msg void OnEnSetfocusEditComment();
 };
