@@ -1,7 +1,7 @@
 # FacialAttendance2026
 <img width="1852" height="1082" alt="image" src="https://github.com/user-attachments/assets/d318e16e-7f6f-4daf-be4f-ef732c29eeb4" />
 
-## Progress:  Apr 26.
+## Progress:  Apr 28.
 - OK:  Face Detection by HaarCascard
 - OK:  Face Detection by YuNet
 - OK:  Find center face
@@ -9,9 +9,9 @@
 - OK:  Multiple Camera/Hardware.  Laptop PC, Desktop PC.
 - OK:  Window Controls
 - OK:  Ring Buffer
+- OK:  Feature Extraction
+- 50%  Person Identification (= Face Identification)
 - == Not Yet ==
-- Feature Extraction
-- Person Identification (= Face Recognition)
 - Save Function
 
 ## New Topics
@@ -56,10 +56,13 @@
 | &ensp; target_id | DNN_TARGET_CPU (default) |
 
 ## Issue
-1. There is a case that the score of closing eyes was better than opening eyes.
+1. Font Size on MFC
+2. There is a case that the score of closing eyes was better than opening eyes.
 <img width="1185" height="693" alt="image" src="https://github.com/user-attachments/assets/663d3405-ecae-4a59-9d90-63f0d843c231" />
 
 ## Log
+- 04.28.  Bug fix for Face Identification.
+- 04.27.  Feature extraction and Identification (SFace only)
 - 04.26.  Ring Buffer showing best face and worst face with score.
 - 04.25.  Change the view full color -> gray scale to enphasize the bounding box, guide frame.
 - 04.24.  Adaptive Screen Light, Slider completed. Changed the HaarCascade parameter (ScaleFaceor1.2->1.1, MinNeibors 10->8). 
