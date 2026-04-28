@@ -31,9 +31,12 @@
 #define IDC_EDIT_TIME                   1025
 #define IDC_STATIC_COMMENT              1026
 #define IDC_EDIT_COMMENT                1027
+#define IDC_EDIT_USER_ID2               1028
+#define IDC_EDIT_TIME_ORG               1028
 #define IDC_STATIC_ARROW1               1029
 #define IDC_BUTTON_CONFIRM              1030
 #define IDC_STATIC_NAME2                1031
+#define IDC_STATIC_TIME2                1031
 #define IDC_STATIC_ATTENDEES            1032
 #define ID_FILE_SHOWATTENDANCELIST      32771
 #define ID_FILE_EXIT                    32772

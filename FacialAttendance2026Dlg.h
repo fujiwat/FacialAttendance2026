@@ -28,11 +28,13 @@ struct FaceBufferItem {
     cv::Mat rawFrame;            // SFaceのアライメントで使うための「切り出す前の元フレーム」
     std::vector<float> faceData; // YuNet互換の15要素
 
-    // ★初期値(= 0.0;)をつけて警告をなくす
+    // 初期値(= 0.0;)をつけておくことで予期せぬバグを防ぎます
     double sharpness = 0.0;
     double confidence = 0.0;  
     double contrast = 0.0;    
     double totalScore = 0.0;  
+
+    ULONGLONG timestamp = 0; // ★追加: フレームを取得したミリ秒単位の時刻
 };
 
 // CFacialAttendance2026Dlg dialog
@@ -88,6 +90,7 @@ private:
     CComboBox    m_comboName;
     CEdit        m_editID;
     CDateTimeCtrl m_editTime;
+    CEdit        m_editTimeOrg;
     CEdit        m_editComment;
     int          m_currentCameraIdx;
     bool         m_shouldChangeCamera;
@@ -99,13 +102,15 @@ private:
     UINT_PTR     m_timerId;
     CFont        m_fontBold;
     CFont        m_fontRegular;
-    CFont        m_fontFixed;   // ★ 追加: 固定幅フォント用
+    CFont        m_fontFixed;        // ★ 追加: 固定幅フォント用
+    CFont        m_fontFixedSmall;   // ★ 追加: 固定幅フォント用
     CFont        m_fontFixedList;   // ★ 追加: 固定幅フォント用
     FpsCounter   m_fpsCounter;
 
     std::deque<FaceBufferItem> m_faceRingBuffer; // リングバッファ
     std::mutex m_bufferMutex;                    // バッファ操作用の排他制御
     FaceBufferItem             m_bestItem;       // ★追加: Confirm時にEnrollするため、PhotoOK時のベスト画像を保持
+    cv::Point m_lastTargetCenter{ -1, -1 };      // ★追加: 別の人が中央に来たかを判別するための、前回のターゲット中心座標
     std::atomic<bool> m_bCapturing;
     std::atomic<int>  m_discardFrames{ 0 }; // ★追加: 捨てるフレーム数
 
@@ -160,9 +165,21 @@ private:
     void ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& outResizedFrame, cv::Mat& outDisplayFrame);
     bool PerformFaceDetection(cv::Mat& displayFrame, cv::Mat& resizedFrame, cv::Mat& outFaces, std::vector<float>& outBestFaceData);
     
-    // ★追加: 顔が検出されたあとの切り出し・評価・バッファリングを行うヘルパー
+    // ★追加: 顔が抽出されたときの切り出し・評価・バッファへの登録を行うヘルパー
     void ProcessAndBufferDetectedFace(const cv::Mat& displayFrame, const cv::Mat& resizedFrame, const std::vector<float>& bestFaceData);
     
+    // --- 追加: ProcessAndBufferDetectedFace 用のヘルパー関数 ---
+    bool CheckAndResetTargetJump(int cx, int cy, int faceWidth);
+    cv::Rect GetSafeSquareRect(int cx, int cy, int sideLength, int maxWidth, int maxHeight);
+    cv::Rect GetPaddedRectAndShiftLandmarks(int cx, int cy, int padSide, int maxWidth, int maxHeight, const std::vector<float>& originalData, std::vector<float>& outShiftedData); 
+    
+    void AddItemToRingBuffer(const FaceBufferItem& item);
+    
+    // ---------- 追加: OnBnClickedButtonPhotoOk用のヘルパー ----------
+    void ClearFaceUI();
+    void FindBestAndWorstFaces(cv::Mat& outBestFace, cv::Mat& outWorstFace, double& outMaxScore, double& outMinScore);
+    void ApplyFaceIdentificationResults(const cv::Mat& bestFace, const cv::Mat& worstFace, double maxScore, double minScore);
+
     // ---------- ココから ----------
     double CalculateSharpness(const cv::Mat& img);
     double CalculateContrast(const cv::Mat& img);
@@ -202,4 +219,8 @@ public:
     afx_msg void OnCbnSetfocusComboName();
     afx_msg void OnEnSetfocusEditId();
     afx_msg void OnEnSetfocusEditComment();
+
+    // ★追加: 顔検出の処理を分割したヘルパー関数
+    bool DetectAndGetBestHaarFace(cv::Mat& displayFrame, int cx, int cy, int& minDistance2, std::vector<float>& outBestFaceData);
+    bool DetectAndGetBestYunetFace(cv::Mat& displayFrame, const cv::Mat& resizedFrame, int cx, int cy, int& minDistance2, cv::Mat& outFaces, std::vector<float>& outBestFaceData);
 };

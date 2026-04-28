@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #pragma region Application_Constants
 #	define APP_NAME_SHORT "FacialAttendance2026"
@@ -32,20 +32,23 @@
 #pragma region UI_Constants
 #	define UI_ID_TEXT_MAX_LENGTH 8
 #	define UI_COMMENT_TEXT_MAX_LENGTH 200
-#	define UI_FIELD_HEIGHT 28
 #   define UI_LIST_FONT_SIZE 16
+#	define UI_FIELD_HEIGHT_SMALL 20
+#	define UI_FIELD_HEIGHT 28
 #   define UI_FONT_NAME L"Segoe UI"
 #   define UI_FONT_NAME_FIXED L"Tahoma"
 #pragma endregion
 
 
 #pragma region FACE_RECOGNITION
-	const int MAX_FACE_RING_BUFFER = 300;	// ��ʐ^�̃����O�o�b�t�@�̍ő�ۑ��� (1�t���[��1���Ƃ��Ė�10�b��)
-	const int FACE_NORM_SIZE = 112;			// ��̐��K���T�C�Y (SFace, Eigenfaces, LBPH ����)
-	// ��]���p�X�R�A�̏d�� (���v 1.0 �ɂȂ�悤�ɐݒ�)
-	const double FACE_WEIGHT_CONFIDENCE = 0.6; // �m�x�i���ʁA�B��Ȃ��j
-	const double FACE_WEIGHT_SHARPNESS = 0.2; // �V���[�v�l�X�i�u���j
-	const double FACE_WEIGHT_CONTRAST = 0.2; // �R���g���X�g�i�����/���Ԃ�j
+	const int MAX_FACE_RING_BUFFER = 300;	// ʐ^̃Oobt@̍őۑ (1t[1ƂĖ10b)
+	const int FACE_RING_BUFFER_TIMEOUT_MS = 3000; // ★追加：バッファに保存しておく最大時間(ミリ秒)
+	const double FACE_TARGET_JUMP_RATIO = 0.6;    // ★追加：顔の幅の何%移動したら「別の人にすり替わった」と判定するか
+	const int FACE_NORM_SIZE = 112;			// ̐KTCY (SFace, Eigenfaces, LBPH )
+	// 顔評価用スコアの重み (合計 1.0 になるように設定)
+	const double FACE_WEIGHT_CONFIDENCE = 0.6; // 確度（正面、隠れなし）
+	const double FACE_WEIGHT_SHARPNESS = 0.2; // シャープネス（ブレ）
+	const double FACE_WEIGHT_CONTRAST = 0.2; // コントラスト（白飛び/黒つぶれ）
 
 #pragma endregion
 
