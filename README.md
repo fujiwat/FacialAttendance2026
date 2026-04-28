@@ -10,8 +10,8 @@
 - OK:  Window Controls
 - OK:  Ring Buffer
 - OK:  Feature Extraction
+- 50%  Person Identification (= Face Identification)
 - == Not Yet ==
-- Person Identification (= Face Identification)
 - Save Function
 
 ## New Topics
