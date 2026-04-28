@@ -9,8 +9,8 @@
 - OK:  Multiple Camera/Hardware.  Laptop PC, Desktop PC.
 - OK:  Window Controls
 - OK:  Ring Buffer
+- OK:  Feature Extraction
 - == Not Yet ==
-- Feature Extraction
 - Person Identification (= Face Recognition)
 - Save Function
 
