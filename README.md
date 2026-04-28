@@ -56,7 +56,8 @@
 | &ensp; target_id | DNN_TARGET_CPU (default) |
 
 ## Issue
-1. There is a case that the score of closing eyes was better than opening eyes.
+1. Font Size on MFC
+2. There is a case that the score of closing eyes was better than opening eyes.
 <img width="1185" height="693" alt="image" src="https://github.com/user-attachments/assets/663d3405-ecae-4a59-9d90-63f0d843c231" />
 
 ## Log
