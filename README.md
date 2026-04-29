@@ -36,7 +36,7 @@
 | &ensp; OpenCV Version | 4.10 |
 | **Facial Attendance Technologies** | **Value** |
 | &ensp; Facial Detection | Haar Cascade / YuNet |
-| &ensp; Facial Recognition | SFace |
+| &ensp; Facial Identification | SFace |
 | **[Detection] HaarCascade Settings** | **Value** |
 | &ensp; Model | haarcascade_frontalface_default.xml |
 | &ensp; HaarCascadeScaleFactor |  1.1 |
