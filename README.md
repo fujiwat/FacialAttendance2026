@@ -34,7 +34,7 @@
 | &ensp; Project Template | MFC App |
 | &ensp; Programming Language | C++ |
 | &ensp; OpenCV Version | 4.10 |
-| ** Facial Attendance Technologies** | **Value** |
+| **Facial Attendance Technologies** | **Value** |
 | &ensp; Facial Detection | Haar Cascade / YuNet |
 | &ensp; Facial Recognition | SFace |
 | **[Detection] HaarCascade Settings** | **Value** |
