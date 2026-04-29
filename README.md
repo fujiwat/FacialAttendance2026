@@ -29,7 +29,7 @@
 | &ensp; Size (Width x Height) | 640 x 360 |  |
 | &ensp; Color/Gray | Color |  |
 | &ensp; Mirror | Yes |  |
-| **Programming Environment** | |  |
+| **Programming Environment** | **----** |  |
 | &ensp; IDE | Visual Studio 2022 Community Edition |  |
 | &ensp; Project Template | MFC App |  |
 | &ensp; Programming Language | C++ |  |
