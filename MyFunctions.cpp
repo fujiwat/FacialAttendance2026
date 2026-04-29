@@ -85,7 +85,23 @@ static std::wstring GetAppFolderPath()
     std::wstring docsPath = GetDocumentsPath();
     if (docsPath.empty()) return L"";
 
-    std::wstring appPath = docsPath + L"\\" + std::wstring(wAPP_NAME_SHORT);
+    // 自プロセスのEXEファイルパスを取得
+    wchar_t szExePath[MAX_PATH];
+    GetModuleFileNameW(NULL, szExePath, MAX_PATH);
+    std::wstring exeFullPath(szExePath);
+
+    // フォルダパス部分を取り除いてファイル名のみ抽出
+    size_t pos = exeFullPath.find_last_of(L"\\/");
+    std::wstring exeFileName = (pos == std::wstring::npos) ? exeFullPath : exeFullPath.substr(pos + 1);
+
+    // 拡張子(.exeなど)を取り除く
+    size_t extPos = exeFileName.find_last_of(L".");
+    if (extPos != std::wstring::npos) {
+        exeFileName = exeFileName.substr(0, extPos);
+    }
+
+    // マイドキュメント配下にEXE名でフォルダを作成
+    std::wstring appPath = docsPath + L"\\" + exeFileName;
     CreateDirectoryW(appPath.c_str(), NULL);
     return appPath;
 }
