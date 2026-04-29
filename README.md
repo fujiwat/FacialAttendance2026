@@ -34,10 +34,10 @@
 | &ensp; Project Template | MFC App |
 | &ensp; Programming Language | C++ |
 | &ensp; OpenCV Version | 4.10 |
-| **Facial Attendance Technologies** | **Value** |
+| ** Facial Attendance Technologies** | **Value** |
 | &ensp; Facial Detection | Haar Cascade / YuNet |
 | &ensp; Facial Recognition | SFace |
-| **HaarCascade Settings** | **Value** |
+| ** [Detection] HaarCascade Settings** | **Value** |
 | &ensp; Model | haarcascade_frontalface_default.xml |
 | &ensp; HaarCascadeScaleFactor |  1.1 |
 | &ensp; HaarCascadeMinNeighbors | 8 |
@@ -47,13 +47,19 @@
 | &ensp; HaarCascadeMaxFaceWidth | 0 |
 | &ensp; HaarCascadeMaxFaceHeight | 0 |
 | &ensp; Learning_eigenDistanceThreshold | 3220 (not used)|
-| **YuNet Settings** | **Value** |
+| **  [Detection] YuNet Settings** | **Value** |
 | &ensp; Model | face_detection_yunet_2023mar.onnx |
 | &ensp; score_threshold | 0.9 |
 | &ensp; nms_threshold | 0.3 (default) |
 | &ensp; top_k | 5000 (default) |
 | &ensp; backend_id | DNN_BACKEND_DEFAULT (default) |
 | &ensp; target_id | DNN_TARGET_CPU (default) |
+| **  [Identification] SFace Settings** | **Value** |
+| &ensp; Model | face_recognition_sface_2021dec.onnx |
+| &ensp; FACE_NORM_SIZE |112 x 112 |
+| &ensp; Mathing method | cv::FaceRecognizerSF::DisType::FR_COSINE |
+| &ensp; Threshold | 0.70 |
+
 
 ## Issue
 1. Font Size on MFC
