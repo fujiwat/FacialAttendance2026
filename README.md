@@ -34,10 +34,10 @@
 | &ensp; Project Template | MFC App |  |
 | &ensp; Programming Language | C++ |  |
 | &ensp; OpenCV Version | 4.10 |  |
-| **Facial Attendance Technologies** | |  |
+| **Facial Attendance Technologies** | **————————————————** | **————————————————** |
 | &ensp; Facial Detection | Haar Cascade / YuNet |  |
 | &ensp; Facial Identification | SFace |  |
-| **[Detection] HaarCascade Settings** | |  |
+| **[Detection] HaarCascade Settings** | **————————————————** | **————————————————** |
 | &ensp; Model | haarcascade_frontalface_default.xml |  |
 | &ensp; HaarCascadeScaleFactor |  1.1 |  |
 | &ensp; HaarCascadeMinNeighbors | 8 |  |
@@ -47,23 +47,23 @@
 | &ensp; HaarCascadeMaxFaceWidth | 0 |  |
 | &ensp; HaarCascadeMaxFaceHeight | 0 |  |
 | &ensp; Learning_eigenDistanceThreshold | 3220 (not used)|  |
-| **[Detection] YuNet Settings** | |  |
+| **[Detection] YuNet Settings** | **————————————————** | **————————————————** |
 | &ensp; Model | face_detection_yunet_2023mar.onnx |  |
 | &ensp; score_threshold | 0.9 |  |
 | &ensp; nms_threshold | 0.3 (default) |  |
 | &ensp; top_k | 5000 (default) |  |
 | &ensp; backend_id | DNN_BACKEND_DEFAULT (default) |  |
 | &ensp; target_id | DNN_TARGET_CPU (default) |  |
-| **[Identification] SFace Settings** | |  |
+| **[Identification] SFace Settings** | **————————————————** | **————————————————** |
 | &ensp; Model | face_recognition_sface_2021dec.onnx |  |
 | &ensp; FACE_NORM_SIZE |112 x 112 |  |
 | &ensp; Mathing method | cv::FaceRecognizerSF::DisType::FR_COSINE |  |
 | &ensp; Threshold | 0.70 |  |
-| **Ring Buffer Settings** | |  |
+| **Ring Buffer Settings** | **————————————————** | **————————————————** |
 | &ensp; Number of Buffers | 300 |  |
 | &ensp; Buffer Time out | 3000 ms |  |
 | &ensp; FACE_TARGET_JUMP_RATIO | 60% |  |
-| **Weights Finding Best Shot** | |  |
+| **Weights Finding Best Shot** | **————————————————** | **————————————————** |
 | &ensp; FACE_WEIGHT_CONFIDENCE | 0.6 |  |
 | &ensp; FACE_WEIGHT_SHARPNESS | 0.2 |  |
 | &ensp; FACE_WEIGHT_CONTRAST | 0.2 |  |
