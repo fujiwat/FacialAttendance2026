@@ -60,6 +60,7 @@
 | &ensp; Mathing method | cv::FaceRecognizerSF::DisType::FR_COSINE |  |
 | &ensp; Threshold | 0.70 |  |
 | **Ring Buffer Settings** | **————————————————** | **————————————————** |
+| &ensp; Buffering data | 112x112, rawFrame, YuNet faceData[15], confidence, sharpness, contrast, totalScore |  |
 | &ensp; Number of Buffers | 300 |  |
 | &ensp; Buffer Time out | 3000 ms |  |
 | &ensp; FACE_TARGET_JUMP_RATIO | 60% |  |
