@@ -59,7 +59,14 @@
 | &ensp; FACE_NORM_SIZE |112 x 112 |
 | &ensp; Mathing method | cv::FaceRecognizerSF::DisType::FR_COSINE |
 | &ensp; Threshold | 0.70 |
-
+| **Ring Buffer Settings** | **Value** |
+| &ensp; Number of Buffers | 300 |
+| &ensp; BUffer Time out | 3000 ms |
+| &ensp; FACE_TARGET_JUMP_RATIO | 60% |
+| **Weights Finding Best Shot** | **Value** |
+| &ensp; FACE_WEIGHT_CONFIDENCE | 0.6 |
+| &ensp; FACE_WEIGHT_SHARPNESS | 0.2 |
+| &ensp; FACE_WEIGHT_CONTRAST | 0.2 |
 
 ## Issue
 1. Font Size on MFC
