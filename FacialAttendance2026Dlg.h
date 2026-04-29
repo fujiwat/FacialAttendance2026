@@ -86,6 +86,8 @@ private:
     int m_faceDetectionMode = 2; // 0:Haar, 1:Yunet, 2:Both
     int m_faceIdentificationMode = 2; // (0:Eigenface, 1:LBPH, 2:SFace)
     CComboBox    m_comboCamera;
+    CComboBox    m_comboFaceDetector;
+    CComboBox    m_comboFaceIdentifier;
     CSliderCtrl  m_sliderScreenLight;
     CComboBox    m_comboName;
     CEdit        m_editID;
@@ -134,9 +136,6 @@ private:
     // ★ 追加: CSVへの保存処理を抜き出した関数
     void SaveAttendanceToCsv(const CString& strTime, const CString& strName, const CString& strID, const CString& strComment);
     
-    // ★追加: 計測データをCSVに吐き出してリセットする関数
-    void FlushAndResetEvaluationData();
-
     // Screen Light モードをUIに反映し永続化する
     void    ApplyScreenLightMode(ScreenLightMode mode);
     void    ApplySliderValue(int value);
@@ -144,6 +143,8 @@ private:
 
     // ★機能ごとに分割した初期化関数
     void InitializeCameraList();
+    void InitializeFaceDetector();
+	void InitializeFaceIdentifier();
     void InitializeWorkerThread();
     void InitializeFontsAndUI();
     void InitializeInputFields();
@@ -160,6 +161,8 @@ private:
     // ★追加: 評価(Evaluation)用データの収集用変数
     std::atomic<uint64_t> m_totalFrames{ 0 };
     std::atomic<double>   m_totalLatencyMs{ 0.0 };
+
+    void FlushAndResetDetectionData(FaceDetectionMethod currentMethod);
 
     // ヘルパ関数の追加
     void ProcessCameraFrame(cv::Mat& inOutFrame, cv::Mat& outResizedFrame, cv::Mat& outDisplayFrame);
@@ -198,22 +201,12 @@ private:
 
 public:
     afx_msg void OnBnClickedClose();  // 既存のボタン用処理
-    virtual void OnCancel();          // ← ★追加！ (×ボタンやESCキー用)
+    virtual void OnCancel();         
     afx_msg void OnFileExit();
     afx_msg void OnFileShowattendancelist();
-    afx_msg void OnFacedetectionHaarcascades();
-    afx_msg void OnFacedetectionYunet();
-    afx_msg void OnFacedetectionBoth();
-    afx_msg void OnUpdateFacedetectionHaarcascades(CCmdUI* pCmdUI);
-    afx_msg void OnUpdateFacedetectionYunet(CCmdUI* pCmdUI);
-    afx_msg void OnUpdateFacedetectionBoth(CCmdUI* pCmdUI);
+    afx_msg void OnCbnSelchangeComboFaceDetector();
+    afx_msg void OnCbnSelchangeComboFaceIdentifier();
     afx_msg void OnFacedetectionShowfolder();
-    afx_msg void OnFaceidentificationEigenfaces();
-    afx_msg void OnFaceidentificationLbph();
-    afx_msg void OnFaceidentificationSface();
-    afx_msg void OnUpdateFaceidentificationEigenfaces(CCmdUI* pCmdUI);
-    afx_msg void OnUpdateFaceidentificationLbph(CCmdUI* pCmdUI);
-    afx_msg void OnUpdateFaceidentificationSface(CCmdUI* pCmdUI);
 
     // ★追加: テキストフィールドがフォーカスを受け取ったときの「全選択」処理用
     afx_msg void OnCbnSetfocusComboName();
@@ -223,4 +216,6 @@ public:
     // ★追加: 顔検出の処理を分割したヘルパー関数
     bool DetectAndGetBestHaarFace(cv::Mat& displayFrame, int cx, int cy, int& minDistance2, std::vector<float>& outBestFaceData);
     bool DetectAndGetBestYunetFace(cv::Mat& displayFrame, const cv::Mat& resizedFrame, int cx, int cy, int& minDistance2, cv::Mat& outFaces, std::vector<float>& outBestFaceData);
+    afx_msg void OnEvaluationFacedetection32783();
+    afx_msg void OnEvaluationFaceidentification32784();
 };

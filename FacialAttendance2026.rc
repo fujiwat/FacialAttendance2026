@@ -114,14 +114,18 @@ BEGIN
     LTEXT           ">",IDC_STATIC_ARROW1,263,3,16,19,WS_DISABLED,WS_EX_RIGHT
     LTEXT           "Attendees:",IDC_STATIC_ATTENDEES,526,7,143,18
     CONTROL         "",IDC_ATTENDEES_LIST,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,525,26,144,261
-    CONTROL         "",IDC_STATIC_FACE,"Static",SS_BLACKFRAME,46,26,90,90
-    CONTROL         "",IDC_STATIC_FACE_WORST,"Static",SS_BLACKFRAME,46,126,90,90
-    LTEXT           "Best Shot:",IDC_STATIC,7,24,37,10
-    LTEXT           "Worst Shot:",IDC_STATIC,7,126,38,10
-    LTEXT           "Static",IDC_STATIC_FACE_SCORE,7,35,25,8
-    LTEXT           "Static",IDC_STATIC_FACE_WORST_SCORE,7,137,25,8
+    CONTROL         "",IDC_STATIC_FACE,"Static",SS_BLACKFRAME,46,52,85,85
+    CONTROL         "",IDC_STATIC_FACE_WORST,"Static",SS_BLACKFRAME,46,144,85,85
+    LTEXT           "Best Shot:",IDC_STATIC,7,50,37,10
+    LTEXT           "Worst Shot:",IDC_STATIC,7,144,38,10
+    LTEXT           "Static",IDC_STATIC_FACE_SCORE,7,61,25,8
+    LTEXT           "Static",IDC_STATIC_FACE_WORST_SCORE,7,155,25,8
     LTEXT           "Default:",IDC_STATIC_TIME2,274,297,27,14,0,WS_EX_RIGHT
     EDITTEXT        IDC_EDIT_TIME_ORG,307,292,46,15,ES_AUTOHSCROLL | ES_READONLY | WS_DISABLED,WS_EX_CLIENTEDGE
+    LTEXT           "Detection:",IDC_STATIC_DETCT,7,18,37,10
+    LTEXT           "Identification:",IDC_STATIC_DETCT2,7,33,46,10
+    COMBOBOX        IDC_COMBO_FACE_DETECTOR,54,17,76,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_COMBO_FACE_IDENTIFIER,54,34,76,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
 END
 
 
@@ -207,22 +211,8 @@ BEGIN
     END
     POPUP "Evaluation"
     BEGIN
-        POPUP "Face Detection"
-        BEGIN
-            MENUITEM "Haar Cascades",               ID_FACEDETECTION_HAARCASCADES
-            MENUITEM "YuNet",                       ID_FACEDETECTION_YUNET
-            MENUITEM "Both",                        ID_FACEDETECTION_BOTH
-            MENUITEM SEPARATOR
-            MENUITEM "Show Folder",                 ID_FACEDETECTION_SHOWFOLDER
-        END
-        POPUP "Face Identification"
-        BEGIN
-            MENUITEM "Eigenfaces",                  ID_FACEIDENTIFICATION_EIGENFACES
-            MENUITEM "LBPH",                        ID_FACEIDENTIFICATION_LBPH
-            MENUITEM "SFace",                       ID_FACEIDENTIFICATION_SFACE
-            MENUITEM SEPARATOR
-            MENUITEM "Show Folder",                 ID_FACEIDENTIFICATION_ALL
-        END
+        MENUITEM "Face Detection",              ID_EVALUATION_FACEDETECTION32783
+        MENUITEM "Face Identification",         ID_EVALUATION_FACEIDENTIFICATION32784
     END
 END
 

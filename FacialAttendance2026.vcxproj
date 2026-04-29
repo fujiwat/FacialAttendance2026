@@ -207,6 +207,7 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="MyConst.h" />
     <ClInclude Include="MyFunctions.h" />
+    <ClInclude Include="MyLBPH.h" />
     <ClInclude Include="OpenCV_without_warning.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
@@ -219,6 +220,7 @@
     <ClCompile Include="FacialAttendance2026.cpp" />
     <ClCompile Include="FacialAttendance2026Dlg.cpp" />
     <ClCompile Include="MyFunctions.cpp" />
+    <ClCompile Include="MyLBPH.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

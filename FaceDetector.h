@@ -2,7 +2,15 @@
 
 #include "OpenCV_without_warning.h"
 #include <string>
+#include <atomic> // ★追加
 #include "MyFunctions.h"
+
+// ★追加: 顔検出の処理モードを表す列挙型
+enum class FaceDetectionMethod {
+	HaarCascades = 0,
+	YuNet = 1,
+	Both = 2
+};
 
 class FaceDetector
 {
@@ -11,24 +19,19 @@ public:
 	FaceDetector();
 	~FaceDetector();
 
-	// ★追加: 安全にカメラを開く（失敗したらフォールバックする）機能
+	// 既存のメソッド...
 	bool OpenCamera(int cameraIdx = 0);
 	bool OpenCamera_ok(int cameraIdx = 0);
 
-
-	// YuNet detector parameter setters and getters
 	void DetectFacesYunet(const cv::Mat& frame, cv::Mat& faces);
-	void DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces);
+	void DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces) const;
 
-	// HaarCascade parameters (not used in this implementation, but can be added if needed)
 	void DetectFacesHaar(const cv::Mat& frame, std::vector<cv::Rect>& outRects);
-	void DrawBoundingBoxesHaar(cv::Mat& frame, const std::vector<cv::Rect>& faces);
+	void DrawBoundingBoxesHaar(cv::Mat& frame, const std::vector<cv::Rect>& haarRects) const;
 
-	// Window name to use for display
 	const char* GetWindowName() const;
 	void SetupWindow();
 
-	// Camera and frame-size accessors
 	bool IsCameraInitialized() const;
 	bool IsYunetInitialized() const;
 	bool IsHaarInitialized() const;
@@ -37,6 +40,10 @@ public:
 	cv::VideoCapture& GetCapture();
 	int GetFrameWidth() const;
 	int GetFrameHeight() const;
+
+	// ★追加: レイテンシ計測とCSV出力をFaceDetectorで管理
+	void RecordDetectionLatency(double latencyMs);
+	void FlushAndResetDetectionData(FaceDetectionMethod currentMethod);
 
 private:
 	cv::Ptr<cv::FaceDetectorYN> yunet_;
@@ -48,4 +55,8 @@ private:
 	bool cameraInitialized_;
 	bool yunetInitialized_;
 	bool haarInitialized_;
+
+	// ★追加: 評価(Evaluation)用データの収集用変数
+	std::atomic<uint64_t> m_totalFrames{ 0 };
+	std::atomic<double>   m_totalLatencyMs{ 0.0 };
 };

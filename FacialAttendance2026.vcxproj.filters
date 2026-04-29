@@ -51,6 +51,9 @@
     <ClInclude Include="FaceIdentifier.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="MyLBPH.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FacialAttendance2026.cpp">
@@ -72,6 +75,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FaceIdentifier.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MyLBPH.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

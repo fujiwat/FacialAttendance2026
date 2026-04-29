@@ -53,8 +53,9 @@ private:
 // マイドキュメント内に保存用のディレクトリを作成し、
 // その日の日付に基づいたCSVファイルのフルパス (例: C:\Users\name\Documents\FacialAttendance2026\20260425.csv) を返します。
 std::wstring GetAttendanceCsvPath();
-void SaveEvaluationLatencyCsv(int mode, double avgLatencyMs, double equivalentFps);
+std::wstring GetEvaluationFolderPath(const std::wstring& categoryFolder);
 
-// ★変更: 引数で「Evaluationの下のどのフォルダを開くか」を指定できるようにする
-void OpenEvaluationFolder(const std::wstring& subFolderName);
+// ★ 第5引数 long long sampleCount を追加
+void SaveEvaluationLatencyCsv(const std::wstring& categoryFolder, const std::wstring& modeName, double val1, double val2, long long sampleCount);
 
+void OpenEvaluationFolder(const std::wstring& categoryFolder);

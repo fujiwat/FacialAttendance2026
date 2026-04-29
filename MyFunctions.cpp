@@ -1,18 +1,14 @@
-﻿// 標準ライブラリ
-#include "pch.h"
+﻿#include "pch.h"         // ★必ず一番最初！
+#include "framework.h"   // ★ここで MFC (Windows.hやwinsock2など) を正しく読み込ませる
+
+#include <fstream>
 #include <string>
 #include <vector>
 #include <ctime>
 
-// Windows 固有の設定（windows.h の前に置く）
-#define WIN32_LEAN_AND_MEAN
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-
-#include <windows.h>
-#include <sal.h> // _In_, _Out_ 等のアノテーション
+// ※ここで #define WIN32_LEAN_AND_MEAN や <windows.h> を直接書かないのがポイントです
 #include <Shlobj.h>
+#include <sal.h> // _In_, _Out_ 等のアノテーション
 
 #include "OpenCV_without_warning.h"
 #include "FaceDetector.h"
@@ -97,6 +93,12 @@ static std::wstring GetAppFolderPath()
 // 評価用サブフォルダパスを取得・作成
 static std::wstring GetEvaluationFolderPath(const std::wstring& subFolderName)
 {
+#ifdef _DEBUG
+    std::wstring buildType = L"(Debug)";
+#else
+    std::wstring buildType = L"(Release)";
+#endif
+
     std::wstring appPath = GetAppFolderPath();
     if (appPath.empty()) return L"";
 
@@ -109,8 +111,7 @@ static std::wstring GetEvaluationFolderPath(const std::wstring& subFolderName)
     return targetPath;
 }
 
-// ビルド環境とモードからファイル名・アルゴリズム名を決定
-static void GetAlgorithmInfo(int mode, std::wstring& outFileName, std::wstring& outAlgoName)
+static void GetDetectionAlgorithmInfo(const std::wstring& modeName, std::wstring& outFileName, std::wstring& outAlgoName)
 {
 #ifdef _DEBUG
     std::wstring buildType = L"(Debug)";
@@ -118,18 +119,32 @@ static void GetAlgorithmInfo(int mode, std::wstring& outFileName, std::wstring& 
     std::wstring buildType = L"(Release)";
 #endif
 
-    if (mode == 0) {
-        outFileName = L"HaarCascades.csv";
-        outAlgoName = L"Haar Cascades" + buildType;
-    }
-    else if (mode == 1) {
-        outFileName = L"YuNet.csv";
-        outAlgoName = L"YuNet" + buildType;
+    // ファイル名は "YuNet.csv" のようにする
+    outFileName = modeName + L".csv";
+
+    // アルゴリズム名は "YuNet(Release)" または "Haar Cascades(Release)" のようにする
+    if (modeName == L"HaarCascades") {
+        outAlgoName = L"Haar Cascades" + buildType; // Haar CascadesだけはCSV内でスペースを入れたい場合
     }
     else {
-        outFileName = L"Both.csv";
-        outAlgoName = L"Both" + buildType;
+        outAlgoName = modeName + buildType;
     }
+}
+
+// Face Identification 用: ビルド環境とモードからファイル名・アルゴリズム名を決定
+static void GetIdentificationAlgorithmInfo(const std::wstring& modeName, std::wstring& outFileName, std::wstring& outAlgoName)
+{
+#ifdef _DEBUG
+    std::wstring buildType = L"(Debug)";
+#else
+    std::wstring buildType = L"(Release)";
+#endif
+
+    // ファイル名は "SFace.csv" のようにする
+    outFileName = modeName + L".csv";
+
+    // アルゴリズム名は "SFace(Release)" のようにする
+    outAlgoName = modeName + buildType;
 }
 
 // ファイルが新規か空か判定
@@ -277,20 +292,72 @@ std::wstring GetAttendanceCsvPath()
     return L"attendance" + dateStr + L".csv";
 }
 
-void SaveEvaluationLatencyCsv(int mode, double avgLatencyMs, double equivalentFps)
+void SaveEvaluationLatencyCsv(const std::wstring& categoryFolder, const std::wstring& modeName, double val1, double val2, long long sampleCount)
 {
-    std::wstring basePath = GetEvaluationFolderPath(std::wstring(wFACE_DETECTION_LATENCY_FOLDER_NAME));
-    if (basePath.empty()) {
-        return;
+    // 指定されたカテゴリ名で Evaluation フォルダ直下にフォルダを取得/作成
+    std::wstring folderPath = GetEvaluationFolderPath(categoryFolder);
+    if (folderPath.empty()) return;
+
+    std::wstring algoFileName;
+    std::wstring outAlgoNameStr;
+
+    // カテゴリごとにアルゴリズム名、ファイル名、ヘッダ行を自動設定
+    // ★ 右端に ", Samples" を追加
+    std::string headerLine = "DateTime(YYYY/MM/DD HH:mm:ss), Algorithm, Val1, Val2, Samples\n";
+
+    // ★ 定数定数と比較するように変更
+    if (categoryFolder == wFACE_DETECTION_LATENCY_FOLDER_NAME) {
+        GetDetectionAlgorithmInfo(modeName, algoFileName, outAlgoNameStr);
+        headerLine = "DateTime(YYYY/MM/DD HH:mm:ss), Algorithm, Average Latency (ms), Equivalent FPS, Samples\n";
+    }
+    else if (categoryFolder == wFACE_IDENTIFICATION_LATENCY_FOLDER_NAME) {
+        GetIdentificationAlgorithmInfo(modeName, algoFileName, outAlgoNameStr);
+        headerLine = "DateTime(YYYY/MM/DD HH:mm:ss), Algorithm, Average Extraction Time (ms), Average Matching Time (ms), Samples\n";
+    }
+    else {
+        return; // 知らないカテゴリなら何もしない
     }
 
-    std::wstring fileName, algoName;
-    GetAlgorithmInfo(mode, fileName, algoName);
+    // std::wstring を CSV出力用に std::string (ASCII想定) に変換
+        // std::wstring を CSV出力用に std::string (ASCII想定) に変換 (キャストを明示して警告を消す)
+    std::string algoName(outAlgoNameStr.length(), ' ');
+    for (size_t i = 0; i < outAlgoNameStr.length(); ++i) {
+        algoName[i] = static_cast<char>(outAlgoNameStr[i]);
+    }
 
-    std::wstring fullPath = basePath + L"\\" + fileName;
-    std::wstring dateStr = GetCurrentDateTimeString(L"%Y/%m/%d %H:%M:%S");
+    std::wstring filePath = folderPath + L"\\" + algoFileName;
 
-    AppendEvaluationDataToCsv(fullPath, dateStr, algoName, avgLatencyMs, equivalentFps);
+    // ファイルが存在し、かつ空でないかをチェック
+    bool needsHeader = false;
+    {
+        std::ifstream checkFile(filePath);
+        if (!checkFile.is_open()) {
+            needsHeader = true;
+        }
+        else {
+            checkFile.seekg(0, std::ios::end);
+            if (checkFile.tellg() == 0) needsHeader = true;
+        }
+    }
+
+    // 現在の日時を取得
+    char dateBuf[64] = { 0 };
+    std::time_t t = std::time(nullptr);
+    struct tm tm_info;
+    if (localtime_s(&tm_info, &t) == 0) {
+        strftime(dateBuf, sizeof(dateBuf), "%Y/%m/%d %H:%M:%S", &tm_info);
+    }
+    std::string dateStr(dateBuf);
+
+    // CSVへの追記書き込み
+    std::ofstream file(filePath, std::ios::app);
+    if (file.is_open()) {
+        if (needsHeader) {
+            file << headerLine;
+        }
+        // ★ 最後に ", sampleCount" を追加
+        file << dateStr << "," << algoName << "," << val1 << "," << val2 << "," << sampleCount << "\n";
+    }
 }
 
 void OpenEvaluationFolder(const std::wstring& subFolderName)

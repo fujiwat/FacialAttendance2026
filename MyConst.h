@@ -54,11 +54,13 @@
 
 #pragma region Evaluation_Constants
 #	define wEVALUATION_FOLDER_NAME L"Evaluation"
-#	define wFACE_DETECTION_LATENCY_FOLDER_NAME L"FaceDetectionLatency"
+#	define wFACE_DETECTION_LATENCY_FOLDER_NAME L"FaceDetection"
+#	define wFACE_IDENTIFICATION_LATENCY_FOLDER_NAME L"FaceIdentification" 
 #pragma endregion
 
 #pragma region Registry_Constants
 #	define REG_SECTION_SETTINGS _T("Settings")
 #	define REG_KEY_FACE_DETECTION_MODE _T("FaceDetectionMode")
+#	define REG_KEY_FACE_IDENTIFICATION_MODE _T("FaceIdentificationMode")
 #pragma endregion
 

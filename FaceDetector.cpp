@@ -164,7 +164,7 @@ void FaceDetector::DetectFacesYunet(const cv::Mat& frame, cv::Mat& faces)
     }
 }
 
-void FaceDetector::DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces)
+void FaceDetector::DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces) const
 {
     // YuNet draw bounding boxes and confidence scores
 	size_t centerFaceIndex = 0;
@@ -182,10 +182,12 @@ void FaceDetector::DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces)
             int dx = faceCenterX - GetFrameWidth() / 2;
             int dy = faceCenterY - GetFrameHeight() / 2;
 
-            if ( (dx*dx + dy*dy) < minDistance2 ) {
+
+            long long distSquare = (long long)dx * dx + (long long)dy * dy;
+            if (distSquare < minDistance2) {
                 centerFaceIndex = i;
-                minDistance2 = dx*dx + dy*dy;
-			}
+                minDistance2 = static_cast<int>(distSquare);
+            }
         }
         for (int i = 0; i < faces.rows; i++) {
             int x = int(faces.at<float>(i, 0));
@@ -251,7 +253,7 @@ void FaceDetector::DetectFacesHaar(const cv::Mat& frame, std::vector<cv::Rect>& 
     outRects = std::move(faces);
 }
 
-void FaceDetector::DrawBoundingBoxesHaar(cv::Mat& frame, const std::vector<cv::Rect>& haarRects)
+void FaceDetector::DrawBoundingBoxesHaar(cv::Mat& frame, const std::vector<cv::Rect>& haarRects) const
 {
     int centerFaceIndex = 0;
     int minDistance2 = std::numeric_limits<int>::max(); // large initial value
@@ -325,4 +327,45 @@ int FaceDetector::GetFrameWidth() const
 int FaceDetector::GetFrameHeight() const
 {
     return frameHeight_;
+}
+
+
+void FaceDetector::RecordDetectionLatency(double latencyMs)
+{
+    m_totalFrames++;
+    // atomic<double> への加算 (C++20以前では fetch_add が使えないため CAS ループを使用する等の対策が必要ですが、
+    // 単一スレッドでの記録であれば直接代入でも可。ここでは安全に更新します)
+    double currentVal = m_totalLatencyMs.load();
+    while (!m_totalLatencyMs.compare_exchange_weak(currentVal, currentVal + latencyMs)) {
+    }
+}
+
+void FaceDetector::FlushAndResetDetectionData(FaceDetectionMethod currentMethod)
+{
+    uint64_t frames = m_totalFrames.load();
+    if (frames > 0) {
+        double totalLoopMs = m_totalLatencyMs.load();
+        double avgLatencyMs = totalLoopMs / (double)frames;
+        double equivalentFps = 0.0;
+        if (avgLatencyMs > 0.0) {
+            equivalentFps = 1000.0 / avgLatencyMs;
+        }
+
+        std::wstring modeStr = L"Unknown";
+        if (currentMethod == FaceDetectionMethod::HaarCascades) {
+            modeStr = L"HaarCascades";
+        }
+        else if (currentMethod == FaceDetectionMethod::YuNet) {
+            modeStr = L"YuNet";
+        }
+        else if (currentMethod == FaceDetectionMethod::Both) {
+            modeStr = L"Both";
+        }
+
+        // ★ 第5引数 (frames) をついか
+        SaveEvaluationLatencyCsv(L"FaceDetectionLatency", modeStr, avgLatencyMs, equivalentFps, static_cast<long long>(frames));
+
+        m_totalFrames.store(0);
+        m_totalLatencyMs.store(0.0);
+    }
 }

@@ -69,6 +69,8 @@ void CFacialAttendance2026Dlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_COMBO_CAMERA, m_comboCamera);
+	DDX_Control(pDX, IDC_COMBO_FACE_DETECTOR, m_comboFaceDetector);
+	DDX_Control(pDX, IDC_COMBO_FACE_IDENTIFIER, m_comboFaceIdentifier);
 	DDX_Control(pDX, IDC_SLIDER_SL, m_sliderScreenLight);
 	DDX_Control(pDX, IDC_COMBO_NAME, m_comboName);
 	DDX_Control(pDX, IDC_EDIT_USER_ID, m_editID);
@@ -85,6 +87,8 @@ BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
 	ON_WM_ACTIVATE()
 	ON_WM_HSCROLL()
 	ON_CBN_SELCHANGE(IDC_COMBO_CAMERA, &CFacialAttendance2026Dlg::OnCbnSelchangeComboCamera)
+	ON_CBN_SELCHANGE(IDC_COMBO_FACE_DETECTOR, &CFacialAttendance2026Dlg::OnCbnSelchangeComboFaceDetector)
+	ON_CBN_SELCHANGE(IDC_COMBO_FACE_IDENTIFIER, &CFacialAttendance2026Dlg::OnCbnSelchangeComboFaceIdentifier)
 	ON_BN_CLICKED(IDCLOSE, &CFacialAttendance2026Dlg::OnBnClickedClose)
 	ON_BN_CLICKED(IDC_BUTTON_PHOTO_OK, &CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk)
 	ON_BN_CLICKED(IDC_BUTTON_CAMERA_ON, &CFacialAttendance2026Dlg::OnBnClickedButtonCameraOn)
@@ -96,28 +100,18 @@ BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_CONFIRM, &CFacialAttendance2026Dlg::OnBnClickedButtonConfirm)
 	ON_COMMAND(ID_FILE_EXIT, &CFacialAttendance2026Dlg::OnFileExit)
 	ON_COMMAND(ID_FILE_SHOWATTENDANCELIST, &CFacialAttendance2026Dlg::OnFileShowattendancelist)
-	ON_COMMAND(ID_FACEDETECTION_HAARCASCADES, &CFacialAttendance2026Dlg::OnFacedetectionHaarcascades)
-	ON_COMMAND(ID_FACEDETECTION_YUNET, &CFacialAttendance2026Dlg::OnFacedetectionYunet)
-	ON_COMMAND(ID_FACEDETECTION_BOTH, &CFacialAttendance2026Dlg::OnFacedetectionBoth)
-	ON_UPDATE_COMMAND_UI(ID_FACEDETECTION_HAARCASCADES, &CFacialAttendance2026Dlg::OnUpdateFacedetectionHaarcascades)
-	ON_UPDATE_COMMAND_UI(ID_FACEDETECTION_YUNET, &CFacialAttendance2026Dlg::OnUpdateFacedetectionYunet)
-	ON_UPDATE_COMMAND_UI(ID_FACEDETECTION_BOTH, &CFacialAttendance2026Dlg::OnUpdateFacedetectionBoth)
 	ON_WM_INITMENUPOPUP()
 	ON_COMMAND(ID_FACEDETECTION_SHOWFOLDER, &CFacialAttendance2026Dlg::OnFacedetectionShowfolder)
 	ON_BN_CLICKED(IDC_BUTTON_PHOTO_OK, &CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk)
-	ON_COMMAND(ID_FACEIDENTIFICATION_EIGENFACES, &CFacialAttendance2026Dlg::OnFaceidentificationEigenfaces)
-	ON_COMMAND(ID_FACEIDENTIFICATION_LBPH, &CFacialAttendance2026Dlg::OnFaceidentificationLbph)
-	ON_COMMAND(ID_FACEIDENTIFICATION_SFACE, &CFacialAttendance2026Dlg::OnFaceidentificationSface)
-	ON_UPDATE_COMMAND_UI(ID_FACEIDENTIFICATION_EIGENFACES, &CFacialAttendance2026Dlg::OnUpdateFaceidentificationEigenfaces)
-	ON_UPDATE_COMMAND_UI(ID_FACEIDENTIFICATION_LBPH, &CFacialAttendance2026Dlg::OnUpdateFaceidentificationLbph)
-	ON_UPDATE_COMMAND_UI(ID_FACEIDENTIFICATION_SFACE, &CFacialAttendance2026Dlg::OnUpdateFaceidentificationSface)
 	ON_CBN_SETFOCUS(IDC_COMBO_NAME, &CFacialAttendance2026Dlg::OnCbnSetfocusComboName)
 	ON_EN_SETFOCUS(IDC_EDIT_USER_ID, &CFacialAttendance2026Dlg::OnEnSetfocusEditId)
 	ON_EN_SETFOCUS(IDC_EDIT_COMMENT, &CFacialAttendance2026Dlg::OnEnSetfocusEditComment)
+	ON_COMMAND(ID_EVALUATION_FACEDETECTION32783, &CFacialAttendance2026Dlg::OnEvaluationFacedetection32783)
+	ON_COMMAND(ID_EVALUATION_FACEIDENTIFICATION32784, &CFacialAttendance2026Dlg::OnEvaluationFaceidentification32784)
 END_MESSAGE_MAP()
 
 
-std::vector<CString> GetCameraNames()
+static std::vector<CString> GetCameraNames()
 {
 	std::vector<CString> cameraNames;
 	HRESULT hrCo = CoInitialize(NULL);
@@ -188,13 +182,15 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
 	int x = (screenWidth - rectWindow.Width()) / 2;
 	SetWindowPos(NULL, x, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
 
+	InitializeMenuSettings();
+	InitializeFaceDetector();
+	InitializeFaceIdentifier();
 	InitializeCameraList();
 	InitializeWorkerThread();
 	InitializeFontsAndUI();
 	InitializeInputFields();
 	InitializeListControl();
 	InitializeScreenLightSettings();
-	InitializeMenuSettings();
 
 	m_identifier.Initialize("");
 
@@ -256,17 +252,35 @@ void CFacialAttendance2026Dlg::InitializeCameraList()
 	}
 }
 
+void CFacialAttendance2026Dlg::InitializeFaceDetector()
+{
+	m_comboFaceDetector.AddString(_T("Haar Cascades"));
+	m_comboFaceDetector.AddString(_T("YuNet"));
+	m_comboFaceDetector.AddString(_T("Both"));
+	m_comboFaceDetector.SetCurSel(m_faceDetectionMode);
+}
+
+void CFacialAttendance2026Dlg::InitializeFaceIdentifier()
+{
+	m_comboFaceIdentifier.AddString(_T("Eigenface"));
+	m_comboFaceIdentifier.AddString(_T("LBPH"));
+	m_comboFaceIdentifier.AddString(_T("SFace"));
+	m_comboFaceIdentifier.SetCurSel(m_faceIdentificationMode);
+}
+
 void CFacialAttendance2026Dlg::InitializeWorkerThread()
 {
 	std::thread t([this]() {
 		cv::Mat frame;
 		while (!m_bStopThread) {
-			{
-				std::unique_lock<std::mutex> lock(m_pauseMutex);
-				m_pauseCV.wait(lock, [this] { return m_bCapturing.load() || m_bStopThread.load(); });
-			}
+			std::unique_lock<std::mutex> lock(m_pauseMutex, std::defer_lock);
+			lock.lock(); // ここで明示的にロック
+			m_pauseCV.wait(lock, [this] { return m_bCapturing.load() || m_bStopThread.load(); });
+			lock.unlock(); // ここで明示的にロック解除（これでコンパイラも納得します！）
 
-			if (!::IsWindow(GetSafeHwnd())) break;
+			if (!::IsWindow(GetSafeHwnd())) {
+				break;
+			}
 
 			cv::VideoCapture& cap = m_detector.GetCapture();
 
@@ -468,7 +482,7 @@ void CFacialAttendance2026Dlg::InitializeScreenLightSettings()
 void CFacialAttendance2026Dlg::InitializeMenuSettings()
 {
 	m_faceDetectionMode = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, 2);
-	m_faceIdentificationMode = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, _T("FaceIdentificationMode"), 2);
+	m_faceIdentificationMode = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_IDENTIFICATION_MODE, 2);
 }
 
 void CFacialAttendance2026Dlg::UpdateIdentificationFields(CString name)
@@ -539,7 +553,8 @@ void CFacialAttendance2026Dlg::OnPaint()
 
 HCURSOR CFacialAttendance2026Dlg::OnQueryDragIcon()
 {
-	return static_cast<HCURSOR>(m_hIcon);
+	HICON& hIcon = m_hIcon;
+	return static_cast<HCURSOR>(hIcon);
 }
 
 void CFacialAttendance2026Dlg::OnTimer(UINT_PTR nIDEvent)
@@ -668,12 +683,15 @@ void CFacialAttendance2026Dlg::OnCancel()
 {
 	m_bStopThread = true;
 	m_pauseCV.notify_all();
+	if (m_workerThread.joinable()) m_workerThread.join();
 
-	if (m_workerThread.joinable()) {
-		m_workerThread.join();
-	}
+	// ★ ダイアログクラスのメソッドを呼び出すように変更
+	auto currentDetMethod = static_cast<FaceDetectionMethod>(m_faceDetectionMode);
+	FlushAndResetDetectionData(currentDetMethod);
 
-	FlushAndResetEvaluationData();
+	// ★ 認識(Identification)の吐き出し＆リセット
+	auto currentMethod = static_cast<FaceIdentificationMethod>(m_faceIdentificationMode);
+	m_identifier.FlushAndResetIdentificationData(currentMethod);
 
 	CDialogEx::OnCancel();
 }
@@ -823,6 +841,11 @@ bool CFacialAttendance2026Dlg::PerformFaceDetection(cv::Mat& displayFrame, cv::M
 		if (DetectAndGetBestHaarFace(displayFrame, cx, cy, minDistance2, outBestFaceData)) {
 			faceDetected = true;
 		}
+	}
+
+	// ★ Bothモードの場合、YuNetの結果を優先（上書き）させるために距離の記録を一旦リセットする
+	if (currentMode == 2) {
+		minDistance2 = std::numeric_limits<int>::max();
 	}
 
 	if (currentMode == 1 || currentMode == 2) {
@@ -1134,38 +1157,6 @@ void CFacialAttendance2026Dlg::OnFileShowattendancelist()
 {
 }
 
-void CFacialAttendance2026Dlg::OnFacedetectionHaarcascades()
-{
-	FlushAndResetEvaluationData();
-	m_faceDetectionMode = 0;
-	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, m_faceDetectionMode);
-}
-void CFacialAttendance2026Dlg::OnFacedetectionYunet()
-{
-	FlushAndResetEvaluationData();
-	m_faceDetectionMode = 1;
-	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, m_faceDetectionMode);
-}
-void CFacialAttendance2026Dlg::OnFacedetectionBoth()
-{
-	FlushAndResetEvaluationData();
-	m_faceDetectionMode = 2;
-	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, m_faceDetectionMode);
-}
-
-void CFacialAttendance2026Dlg::OnUpdateFacedetectionHaarcascades(CCmdUI* pCmdUI)
-{
-	pCmdUI->SetRadio(m_faceDetectionMode == 0);
-}
-void CFacialAttendance2026Dlg::OnUpdateFacedetectionYunet(CCmdUI* pCmdUI)
-{
-	pCmdUI->SetRadio(m_faceDetectionMode == 1);
-}
-void CFacialAttendance2026Dlg::OnUpdateFacedetectionBoth(CCmdUI* pCmdUI)
-{
-	pCmdUI->SetRadio(m_faceDetectionMode == 2);
-}
-
 void CFacialAttendance2026Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL bSysMenu)
 {
 	CDialogEx::OnInitMenuPopup(pPopupMenu, nIndex, bSysMenu);
@@ -1188,24 +1179,26 @@ void CFacialAttendance2026Dlg::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, B
 
 void CFacialAttendance2026Dlg::OnFacedetectionShowfolder()
 {
-	FlushAndResetEvaluationData();
+	auto currentDetMethod = static_cast<FaceDetectionMethod>(m_faceDetectionMode);
+	FlushAndResetDetectionData(currentDetMethod);
 	OpenEvaluationFolder(wFACE_DETECTION_LATENCY_FOLDER_NAME);
 }
 
-void CFacialAttendance2026Dlg::FlushAndResetEvaluationData()
+void CFacialAttendance2026Dlg::FlushAndResetDetectionData(FaceDetectionMethod currentMethod)
 {
 	uint64_t frames = m_totalFrames.load();
 	if (frames > 0) {
-
 		double totalLoopMs = m_totalLatencyMs.load();
-
 		double avgLatencyMs = totalLoopMs / (double)frames;
-		double equivalentFps = 0.0;
-		if (avgLatencyMs > 0.0) {
-			equivalentFps = 1000.0 / avgLatencyMs;
-		}
+		double equivalentFps = (avgLatencyMs > 0.0) ? 1000.0 / avgLatencyMs : 0.0;
 
-		SaveEvaluationLatencyCsv(m_faceDetectionMode, avgLatencyMs, equivalentFps);
+		std::wstring modeStr = L"Unknown";
+		if (currentMethod == FaceDetectionMethod::HaarCascades) modeStr = L"HaarCascades";
+		else if (currentMethod == FaceDetectionMethod::YuNet) modeStr = L"YuNet";
+		else if (currentMethod == FaceDetectionMethod::Both) modeStr = L"Both";
+
+		// ★ "FaceDetectionLatency" ではなく定数を使用
+		SaveEvaluationLatencyCsv(wFACE_DETECTION_LATENCY_FOLDER_NAME, modeStr, avgLatencyMs, equivalentFps, static_cast<long long>(frames));
 
 		m_totalFrames.store(0);
 		m_totalLatencyMs.store(0.0);
@@ -1415,40 +1408,7 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonCameraOn()
 
 	m_discardFrames.store(5);
 	m_bCapturing = true;
-	m_pauseCV.notify_one();
-}
-
-void CFacialAttendance2026Dlg::OnFaceidentificationEigenfaces()
-{
-	m_faceIdentificationMode = 0;
-	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, _T("FaceIdentificationMode"), m_faceIdentificationMode);
-}
-
-void CFacialAttendance2026Dlg::OnFaceidentificationLbph()
-{
-	m_faceIdentificationMode = 1;
-	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, _T("FaceIdentificationMode"), m_faceIdentificationMode);
-}
-
-void CFacialAttendance2026Dlg::OnFaceidentificationSface()
-{
-	m_faceIdentificationMode = 2;
-	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, _T("FaceIdentificationMode"), m_faceIdentificationMode);
-}
-
-void CFacialAttendance2026Dlg::OnUpdateFaceidentificationEigenfaces(CCmdUI* pCmdUI)
-{
-	pCmdUI->SetRadio(m_faceIdentificationMode == 0);
-}
-
-void CFacialAttendance2026Dlg::OnUpdateFaceidentificationLbph(CCmdUI* pCmdUI)
-{
-	pCmdUI->SetRadio(m_faceIdentificationMode == 1);
-}
-
-void CFacialAttendance2026Dlg::OnUpdateFaceidentificationSface(CCmdUI* pCmdUI)
-{
-	pCmdUI->SetRadio(m_faceIdentificationMode == 2);
+	m_pauseCV.notify_one();afx_msg void OnFacedetectionHaarcascades();
 }
 
 void CFacialAttendance2026Dlg::OnCbnSetfocusComboName()
@@ -1474,9 +1434,12 @@ bool CFacialAttendance2026Dlg::CheckAndResetTargetJump(int cx, int cy, int faceW
 	bool jumped = false;
 
 	if (!m_faceRingBuffer.empty() && m_lastTargetCenter.x >= 0) {
-		double dist = std::sqrt(std::pow(cx - m_lastTargetCenter.x, 2) + std::pow(cy - m_lastTargetCenter.y, 2));
+		// ★cx と m_lastTargetCenter.x を『それぞれ先に』doubleにしてから引き算し、掛けあわせる
+		double dx = static_cast<double>(cx) - static_cast<double>(m_lastTargetCenter.x);
+		double dy = static_cast<double>(cy) - static_cast<double>(m_lastTargetCenter.y);
+		double dist = std::sqrt(dx * dx + dy * dy);
 
-		if (dist > faceWidth * FACE_TARGET_JUMP_RATIO) {
+		if (dist > static_cast<double>(faceWidth) * FACE_TARGET_JUMP_RATIO) {
 			m_faceRingBuffer.clear();
 			jumped = true;
 		}
@@ -1508,7 +1471,9 @@ cv::Rect CFacialAttendance2026Dlg::GetPaddedRectAndShiftLandmarks(int cx, int cy
 	outShiftedData = originalData;
 	outShiftedData[0] -= padX; // x
 	outShiftedData[1] -= padY; // y
-	for (int i = 4; i < 14; i += 2) {
+	
+	// ★ ここを int から size_t に変更します
+	for (size_t i = 4; i < 14; i += 2) {
 		outShiftedData[i] -= padX;     // landmarks_x
 		outShiftedData[i + 1] -= padY; // landmarks_y
 	}
@@ -1581,4 +1546,45 @@ void CFacialAttendance2026Dlg::ProcessAndBufferDetectedFace(const cv::Mat& displ
 
 		AddItemToRingBuffer(item);
 	}
+}
+
+void CFacialAttendance2026Dlg::OnCbnSelchangeComboFaceDetector()
+{
+	auto currentDetMethod = static_cast<FaceDetectionMethod>(m_faceDetectionMode);
+	// ★ ここもダイアログクラスのメソッドに変更
+	FlushAndResetDetectionData(currentDetMethod);
+
+	// 0:Haar Cascades, 1:YuNet, 2:Both
+	m_faceDetectionMode = m_comboFaceDetector.GetCurSel();
+	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_DETECTION_MODE, m_faceDetectionMode);
+}
+
+void CFacialAttendance2026Dlg::OnCbnSelchangeComboFaceIdentifier()
+{
+	// ★ 1行で吐き出しとリセットが完了する！（ResetLatencyMetricsは不要になりました）
+	auto oldMethod = static_cast<FaceIdentificationMethod>(m_faceIdentificationMode);
+	m_identifier.FlushAndResetIdentificationData(oldMethod);
+
+	m_faceIdentificationMode = m_comboFaceIdentifier.GetCurSel();
+	AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_FACE_IDENTIFICATION_MODE, m_faceIdentificationMode);
+}
+
+void CFacialAttendance2026Dlg::OnEvaluationFacedetection32783()
+{
+	// 事前にバッファにある計測データを吐き出してからフォルダを開く
+	auto currentDetMethod = static_cast<FaceDetectionMethod>(m_faceDetectionMode);
+	// ★ ここもダイアログクラスのメソッドに変更
+	FlushAndResetDetectionData(currentDetMethod);
+
+	// Face Detection 用の計測結果フォルダを開く
+	OpenEvaluationFolder(wFACE_DETECTION_LATENCY_FOLDER_NAME);
+}
+
+void CFacialAttendance2026Dlg::OnEvaluationFaceidentification32784()
+{
+	auto currentMethod = static_cast<FaceIdentificationMethod>(m_faceIdentificationMode);
+	m_identifier.FlushAndResetIdentificationData(currentMethod);
+
+	// Face Identification 用の計測結果フォルダを開く
+	OpenEvaluationFolder(wFACE_IDENTIFICATION_LATENCY_FOLDER_NAME);
 }
