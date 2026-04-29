@@ -24,7 +24,7 @@
   - Dark colored bounding boxes are shown when there are two faces or more.  The light colored face is the most centered face in the photo.
 
 ## Settings
-| Camera Settings | Value |
+| Camera Settings | Value |  |
 | :--- | :--- | :--- |
 | &ensp; Size (Width x Height) | 640 x 360 |  |
 | &ensp; Color/Gray | Color |  |
