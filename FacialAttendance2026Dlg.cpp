@@ -306,6 +306,7 @@ void CFacialAttendance2026Dlg::InitializeWorkerThread()
 						bool faceDetected = PerformFaceDetection(displayFrame, resizedFrame, faces, bestFaceData);
 						m_bShowWarning.store(!faceDetected);
 
+						double fps = m_currentFps.load();
 						if (m_bCapturing) {
 							// 顔検出結果のバッファリング
 							if (faceDetected && !bestFaceData.empty()) {
@@ -313,7 +314,7 @@ void CFacialAttendance2026Dlg::InitializeWorkerThread()
 							}
 							
 							// FPSとレイテンシの計測・記録もキャプチャ中のみに限定
-							double fps = m_fpsCounter.tick();
+							fps = m_fpsCounter.tick();
 							m_currentFps.store(fps);
 							UpdateFpsAndLatency(fps);
 						}
@@ -374,7 +375,7 @@ void CFacialAttendance2026Dlg::InitializeFontsAndUI()
 
 	if (GetDlgItem(IDC_STATIC_NAME))      GetDlgItem(IDC_STATIC_NAME)->SetFont(&m_fontRegular);
 	if (GetDlgItem(IDC_STATIC_ID))        GetDlgItem(IDC_STATIC_ID)->SetFont(&m_fontRegular);
-	if (GetDlgItem(IDCSTATIC_TIME))      GetDlgItem(IDC_STATIC_TIME)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDC_STATIC_TIME))      GetDlgItem(IDC_STATIC_TIME)->SetFont(&m_fontRegular);
 	if (GetDlgItem(IDC_STATIC_COMMENT))   GetDlgItem(IDC_STATIC_COMMENT)->SetFont(&m_fontRegular);
 	if (GetDlgItem(IDC_STATIC_ARROW1))    GetDlgItem(IDC_STATIC_ARROW1)->SetFont(&m_fontBold);
 	if (GetDlgItem(IDC_STATIC_ATTENDEES)) GetDlgItem(IDC_STATIC_ATTENDEES)->SetFont(&m_fontRegular);
