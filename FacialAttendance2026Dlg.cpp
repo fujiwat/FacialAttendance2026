@@ -300,16 +300,23 @@ void CFacialAttendance2026Dlg::InitializeWorkerThread()
 						cv::Mat faces;
 						std::vector<float> bestFaceData;
 
+						// 変更前は m_fpsCounter.tick() 等が無条件で呼ばれていました
+						// 以下の処理を m_bCapturing のブロック内に統合します
+
 						bool faceDetected = PerformFaceDetection(displayFrame, resizedFrame, faces, bestFaceData);
 						m_bShowWarning.store(!faceDetected);
 
-						if (m_bCapturing && faceDetected && !bestFaceData.empty()) {
-							ProcessAndBufferDetectedFace(displayFrame, resizedFrame, bestFaceData);
+						if (m_bCapturing) {
+							// 顔検出結果のバッファリング
+							if (faceDetected && !bestFaceData.empty()) {
+								ProcessAndBufferDetectedFace(displayFrame, resizedFrame, bestFaceData);
+							}
+							
+							// FPSとレイテンシの計測・記録もキャプチャ中のみに限定
+							double fps = m_fpsCounter.tick();
+							m_currentFps.store(fps);
+							UpdateFpsAndLatency(fps);
 						}
-
-						double fps = m_fpsCounter.tick();
-						m_currentFps.store(fps);
-						UpdateFpsAndLatency(fps);
 
 						{
 							std::lock_guard<std::mutex> lock(m_frameMutex);
@@ -367,7 +374,7 @@ void CFacialAttendance2026Dlg::InitializeFontsAndUI()
 
 	if (GetDlgItem(IDC_STATIC_NAME))      GetDlgItem(IDC_STATIC_NAME)->SetFont(&m_fontRegular);
 	if (GetDlgItem(IDC_STATIC_ID))        GetDlgItem(IDC_STATIC_ID)->SetFont(&m_fontRegular);
-	if (GetDlgItem(IDC_STATIC_TIME))      GetDlgItem(IDC_STATIC_TIME)->SetFont(&m_fontRegular);
+	if (GetDlgItem(IDCSTATIC_TIME))      GetDlgItem(IDC_STATIC_TIME)->SetFont(&m_fontRegular);
 	if (GetDlgItem(IDC_STATIC_COMMENT))   GetDlgItem(IDC_STATIC_COMMENT)->SetFont(&m_fontRegular);
 	if (GetDlgItem(IDC_STATIC_ARROW1))    GetDlgItem(IDC_STATIC_ARROW1)->SetFont(&m_fontBold);
 	if (GetDlgItem(IDC_STATIC_ATTENDEES)) GetDlgItem(IDC_STATIC_ATTENDEES)->SetFont(&m_fontRegular);
@@ -1391,13 +1398,9 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonCameraOn()
 	EnableInputFields(FALSE);
 
 	GetDlgItem(IDC_BUTTON_PHOTO_OK)->EnableWindow(TRUE);
-
 	SendMessage(DM_SETDEFID, IDC_BUTTON_PHOTO_OK, 0);
-
 	GetDlgItem(IDC_BUTTON_PHOTO_OK)->SetFocus();
-
 	GetDlgItem(IDC_BUTTON_CAMERA_ON)->EnableWindow(FALSE);
-
 
 	cv::Mat emptyMat;
 	DrawMatToStatic(IDC_STATIC_FACE, emptyMat);
@@ -1407,8 +1410,9 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonCameraOn()
 	SetDlgItemText(IDC_STATIC_FACE_WORST_SCORE, _T(""));
 
 	m_discardFrames.store(5);
+	m_fpsCounter.reset(); // ★ 追加: 計測再開時にFPSカウンターをリセット
 	m_bCapturing = true;
-	m_pauseCV.notify_one();afx_msg void OnFacedetectionHaarcascades();
+	m_pauseCV.notify_one();
 }
 
 void CFacialAttendance2026Dlg::OnCbnSetfocusComboName()
