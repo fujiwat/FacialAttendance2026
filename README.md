@@ -75,8 +75,10 @@
 <img width="1185" height="693" alt="image" src="https://github.com/user-attachments/assets/663d3405-ecae-4a59-9d90-63f0d843c231" />
 
 ## Log
+- 04.30.  Eigenfaces face Identification. Measurement code in the program.
+- 04.29.  LBPH face Identification.
 - 04.28.  Bug fix for Face Identification.
-- 04.27.  Feature extraction and Identification (SFace only)
+- 04.27.  Feature extraction and Identification (SFace only).
 - 04.26.  Ring Buffer showing best face and worst face with score.
 - 04.25.  Change the view full color -> gray scale to enphasize the bounding box, guide frame.
 - 04.24.  Adaptive Screen Light, Slider completed. Changed the HaarCascade parameter (ScaleFaceor1.2->1.1, MinNeibors 10->8). 
