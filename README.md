@@ -75,6 +75,7 @@
 <img width="1185" height="693" alt="image" src="https://github.com/user-attachments/assets/663d3405-ecae-4a59-9d90-63f0d843c231" />
 
 ## Log
+- 05.01.  Update the documentation.
 - 04.30.  Eigenfaces face Identification. Measurement code in the program.
 - 04.29.  LBPH face Identification.
 - 04.28.  Bug fix for Face Identification.
