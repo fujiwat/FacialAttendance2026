@@ -1,7 +1,9 @@
+[//]: # (@cond)
+
 # FacialAttendance2026
 <img width="1852" height="1082" alt="image" src="https://github.com/user-attachments/assets/d318e16e-7f6f-4daf-be4f-ef732c29eeb4" />
 
-[//]: # (@cond)
+
 
 ## Progress:  Apr 29.
 - OK:  Face Detection by HaarCascard
