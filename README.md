@@ -18,8 +18,6 @@
 - == Not Yet ==
 - Save Function
 
-[//]: # (@endcond)
-
 ## New Topics
 - Yellow guide frame is added.  Caution message is added when there is no face.
 - Multiple Camera support, Camera is tested and code modified for laptop PC, desktop PC.
@@ -28,6 +26,8 @@
   - HaarCascade: Pink, dark pink.
   - YuNet:  Green, dark green.
   - Dark colored bounding boxes are shown when there are two faces or more.  The light colored face is the most centered face in the photo.
+
+[//]: # (@endcond)
 
 ## Settings
 | Camera Settings | Value | Remarks |
