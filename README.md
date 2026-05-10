@@ -69,7 +69,7 @@
 | &ensp; FACE_WEIGHT_SHARPNESS | 0.2 |  |
 | &ensp; FACE_WEIGHT_CONTRAST | 0.2 |  |
 
-[//] @cond
+[//] # (@cond)
 ## Issue
 1. Font Size on MFC
 2. There is a case that the score of closing eyes was better than opening eyes. -> Some times happens.<br />
@@ -93,4 +93,4 @@
 - 04.22.  New version - remake the project with the new template "C++ MFC App"
 - 04.19.  Mirror Mode, it is better than the normal mode.
 
-[//] @endcond
+[//] # (@endcond)
