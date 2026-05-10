@@ -15,7 +15,7 @@
 - 70%  Person Identification (SFace/LBPH/Eigenfaces)
 - == Not Yet ==
 - Save Function
-- 
+
 [//]: # (@endcond)
 
 ## New Topics
