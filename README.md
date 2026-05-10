@@ -70,6 +70,7 @@
 | &ensp; FACE_WEIGHT_CONTRAST | 0.2 |  |
 
 [//] # (@cond)
+
 ## Issue
 1. Font Size on MFC
 2. There is a case that the score of closing eyes was better than opening eyes. -> Some times happens.<br />
