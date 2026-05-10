@@ -1,0 +1,21 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cpp,h}]
+indent_style = space
+indent_size = 4
+tab_width = 4
+cpp_indent_multi_line_macros = false
+
+# Doxygen formatting rules
+cpp_doxygen_single_line_variables = true
+cpp_doxygen_comment_style = block
+
+# Style and formatting preferences requested by the user
+[*.h]
+cpp_doxygen_prefer_inline_documentation = true

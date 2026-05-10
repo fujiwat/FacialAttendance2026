@@ -1,34 +1,22 @@
-
-// FacialAttendance2026.h : main header file for the PROJECT_NAME application
-//
-
 #pragma once
 
 #ifndef __AFXWIN_H__
-	#error "include 'pch.h' before including this file for PCH"
+#error "include 'pch.h' before including this file for PCH"
 #endif
 
-#include "resource.h"		// main symbols
+#include "resource.h"       // main symbols
 
-
-// CFacialAttendance2026App:
-// See FacialAttendance2026.cpp for the implementation of this class
-//
-
+/**
+ * @brief Application class managing main instance initialization and metadata setups.
+ */
 class CFacialAttendance2026App : public CWinApp
 {
 public:
-	CFacialAttendance2026App();
+    CFacialAttendance2026App();
+    virtual BOOL InitInstance();
+    void InitializeApplicationName();
 
-// Overrides
-public:
-	virtual BOOL InitInstance();
-private:
-	void InitializeApplicationName();
-
-// Implementation
-
-	DECLARE_MESSAGE_MAP()
+    DECLARE_MESSAGE_MAP()
 };
 
 extern CFacialAttendance2026App theApp;

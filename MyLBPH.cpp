@@ -3,6 +3,11 @@
 
 namespace CustomLBPH {
 
+    /**
+     * @brief Computes the Local Binary Pattern (LBP) encoding matrix from a sourced grayscale image.
+     * @param src The source continuous intensity grayscale image.
+     * @return A newly generated matrix representing the mapped LBP pattern variables.
+     */
     cv::Mat LBPHCalcImage(const cv::Mat& src)
     {
         cv::Mat dst = cv::Mat::zeros(src.rows, src.cols, CV_8UC1);
@@ -11,19 +16,26 @@ namespace CustomLBPH {
                 uchar center = src.at<uchar>(i, j);
                 unsigned char code = 0;
                 code |= (src.at<uchar>(i - 1, j - 1) >= center) << 7;
-                code |= (src.at<uchar>(i - 1, j)     >= center) << 6;
+                code |= (src.at<uchar>(i - 1, j) >= center) << 6;
                 code |= (src.at<uchar>(i - 1, j + 1) >= center) << 5;
-                code |= (src.at<uchar>(i, j + 1)     >= center) << 4;
+                code |= (src.at<uchar>(i, j + 1) >= center) << 4;
                 code |= (src.at<uchar>(i + 1, j + 1) >= center) << 3;
-                code |= (src.at<uchar>(i + 1, j)     >= center) << 2;
+                code |= (src.at<uchar>(i + 1, j) >= center) << 2;
                 code |= (src.at<uchar>(i + 1, j - 1) >= center) << 1;
-                code |= (src.at<uchar>(i, j - 1)     >= center) << 0;
+                code |= (src.at<uchar>(i, j - 1) >= center) << 0;
                 dst.at<uchar>(i, j) = code;
             }
         }
         return dst;
     }
 
+    /**
+     * @brief Accumulates occurrences of LBP codes forming spatial histograms across block partitions.
+     * @param lbp_image The LBP-encoded visual array map.
+     * @param grid_x The number of horizontal subdivision grids.
+     * @param grid_y The number of vertical subdivision grids.
+     * @return An extended floating point histogram vector combining all regional feature distributions.
+     */
     cv::Mat LBPHCalcSpatialHistogram(const cv::Mat& lbp_image, int grid_x, int grid_y)
     {
         int width = lbp_image.cols / grid_x;
@@ -49,6 +61,12 @@ namespace CustomLBPH {
         return hist;
     }
 
+    /**
+     * @brief Computes the matching distance between two spatial LBP histograms utilizing Chi-Square limits.
+     * @param h1 The primary reference evaluation flat histogram matrix.
+     * @param h2 The opposing evaluation flat histogram matrix object.
+     * @return The quantified total Chi-Square difference mapping.
+     */
     double LBPHCalcChiSquareDistance(const cv::Mat& h1, const cv::Mat& h2)
     {
         double dist = 0.0;

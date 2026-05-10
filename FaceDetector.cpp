@@ -1,28 +1,22 @@
-﻿// 標準ライブラリ
-#include "pch.h"
+﻿#include "pch.h"
 #include <string>
 #include <vector>
-#include <thread>  // ★追加
-#include <chrono>  // ★追加
+#include <thread>  
+#include <chrono>  
 
-// Windows 固有の設定（windows.h の前に置く）
 #define WIN32_LEAN_AND_MEAN
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 
 #include <windows.h>
-#include <sal.h> // _In_, _Out_ 等のアノテーション
+#include <sal.h>
 
 #include "OpenCV_without_warning.h"
 #include "MyFunctions.h"
 #include "FaceDetector.h"
 #include "MyConst.h"
 
-// ★古い InitCamera 関数は丸ごと削除します！
-// bool InitCamera(int& frameWidth, int& frameHeight, cv::VideoCapture& cap) { ... }
-
-// ★追加: クラスに移植された安全なオープナー
 bool FaceDetector::OpenCamera(int cameraIdx)
 {
     if (cap_.isOpened()) {
@@ -32,50 +26,37 @@ bool FaceDetector::OpenCamera(int cameraIdx)
     int targetW = frameWidth_;
     int targetH = frameHeight_;
 
-    // DirectShow を使って一発で素早く開く
-    cap_.open(cameraIdx);
     cap_.open(cameraIdx, cv::CAP_DSHOW);
     if (!cap_.isOpened()) {
         return false;
     }
 
-    // 解像度の設定
     cap_.set(cv::CAP_PROP_FRAME_WIDTH, targetW);
     cap_.set(cv::CAP_PROP_FRAME_HEIGHT, targetH);
 
-    // (オプション) DirectShow バックエンドならFPSやフォーマットもある程度指定通りになりやすいです
-    // cap_.set(cv::CAP_PROP_FPS, 30); 
-
-    // 余計な読み込みテストとフォールバック処理は削除する
-
-    return true; // 速やかに true を返す
+    return true;
 }
 
-// old. slow but works on more cameras. kept for reference and fallback.
 bool FaceDetector::OpenCamera_ok(int cameraIdx)
 {
     if (cap_.isOpened()) {
         cap_.release();
     }
 
-    int targetW = frameWidth_;    // which is CaptureWidth by default
-    int targetH = frameHeight_;   // which is CaptureHeight by default
+    int targetW = frameWidth_;
+    int targetH = frameHeight_;
 
-    // --- 1回目の挑戦：指定解像度を要求してみる ---
     cap_.open(cameraIdx);
     if (!cap_.isOpened()) {
         return false;
     }
 
-    bool needsFallback = false;
     cap_.set(cv::CAP_PROP_FRAME_WIDTH, targetW);
     cap_.set(cv::CAP_PROP_FRAME_HEIGHT, targetH);
 
-    // テスト読み込み（解像度指定のせいでドライバがご機嫌斜めになっていないか確認）
     cv::Mat testFrame;
-    bool testOk = false;
     int i;
-    const int MAX_ATTEMPTS = 1; // 最初の試行とフォールバックの両方を含む  
+    const int MAX_ATTEMPTS = 1;
 
     for (i = 0; i < MAX_ATTEMPTS; i++) {
         if (cap_.read(testFrame) && !testFrame.empty()) {
@@ -83,7 +64,6 @@ bool FaceDetector::OpenCamera_ok(int cameraIdx)
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-    // --- 2回目の挑戦（フォールバック）：解像度指定なしで開き直す ---
     if (i == MAX_ATTEMPTS) {
         cap_.release();
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -97,47 +77,43 @@ bool FaceDetector::OpenCamera_ok(int cameraIdx)
     return true;
 }
 
-// FaceDetector implementation
 FaceDetector::FaceDetector()
     : yunet_(nullptr)
     , haarCascade_()
     , windowName_(APP_NAME_LONG)
-	, cap_()
-	, frameWidth_(CaptureWidth)  
-	, frameHeight_(CaptureHeight) 
-	, cameraInitialized_(false)
-	, yunetInitialized_(false)
-	, haarInitialized_(false)
+    , cap_()
+    , frameWidth_(CaptureWidth)
+    , frameHeight_(CaptureHeight)
+    , cameraInitialized_(false)
+    , yunetInitialized_(false)
+    , haarInitialized_(false)
 {
-    // 1) Initialize camera
-    // ★起動時にもこの安全なメソッドを叩かせる
     cameraInitialized_ = OpenCamera(0);
 
-    // 2) Initialize YuNet detector
     const std::string modelPath = YuNetModelPath;
 
     try {
         yunet_ = cv::FaceDetectorYN::create(modelPath, "", cv::Size(frameWidth_, frameHeight_),
-            0.9f,                                 // score_threshold
-            0.3f,                                 // nms_threshold
-            5000,                                 // top_k
-            cv::dnn::DNN_BACKEND_DEFAULT,         // backend_id
-            cv::dnn::DNN_TARGET_CPU               // target_id
+            0.9f,
+            0.3f,
+            5000,
+            cv::dnn::DNN_BACKEND_DEFAULT,
+            cv::dnn::DNN_TARGET_CPU
         );
         if (yunet_) {
             yunet_->setInputSize(cv::Size(frameWidth_, frameHeight_));
             yunetInitialized_ = true;
-        } else {
+        }
+        else {
             yunetInitialized_ = false;
         }
     }
-    catch (const cv::Exception& /*e*/) {
+    catch (const cv::Exception&) {
         MyMessageBoxA(NULL, MB_OK | MB_ICONERROR, APP_NAME_SHORT, "Can not find YuNet model\n%s", modelPath.c_str());
         yunet_.release();
         yunetInitialized_ = false;
     }
 
-    // 3) Initialize HaarCascade
     const std::string haarPath = HaarCascadeXml;
     if (haarCascade_.load(haarPath)) {
         haarInitialized_ = true;
@@ -153,24 +129,26 @@ FaceDetector::~FaceDetector()
     if (cap_.isOpened()) {
         cap_.release();
     }
+    if (yunet_) {
+        yunet_.release();
+    }
 }
 
 void FaceDetector::DetectFacesYunet(const cv::Mat& frame, cv::Mat& faces)
 {
     if (yunet_ && yunetInitialized_) {
         yunet_->detect(frame, faces);
-    } else {
+    }
+    else {
         faces.release();
     }
 }
 
 void FaceDetector::DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces) const
 {
-    // YuNet draw bounding boxes and confidence scores
-	size_t centerFaceIndex = 0;
-	int minDistance2 = std::numeric_limits<int>::max(); // large initial value
+    size_t centerFaceIndex = 0;
+    int minDistance2 = std::numeric_limits<int>::max();
     if (!faces.empty()) {
-        // find the center face
         for (int i = 0; i < faces.rows; i++) {
             int x = int(faces.at<float>(i, 0));
             int y = int(faces.at<float>(i, 1));
@@ -181,7 +159,6 @@ void FaceDetector::DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces) 
             int faceCenterY = y + (h / 2);
             int dx = faceCenterX - GetFrameWidth() / 2;
             int dy = faceCenterY - GetFrameHeight() / 2;
-
 
             long long distSquare = (long long)dx * dx + (long long)dy * dy;
             if (distSquare < minDistance2) {
@@ -195,7 +172,7 @@ void FaceDetector::DrawBoundingBoxesYunet(cv::Mat& frame, const cv::Mat& faces) 
             int w = int(faces.at<float>(i, 2));
             int h = int(faces.at<float>(i, 3));
             float confidence = faces.at<float>(i, 14);
-			cv::Scalar bgrColor = (i == centerFaceIndex) ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 100, 0);
+            cv::Scalar bgrColor = (i == centerFaceIndex) ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 100, 0);
 
             cv::rectangle(frame, cv::Rect(x, y, w, h), bgrColor, 2);
             cv::putText(frame, cv::format("%.2f", confidence), cv::Point(x, y - 5),
@@ -211,67 +188,64 @@ void FaceDetector::DetectFacesHaar(const cv::Mat& frame, std::vector<cv::Rect>& 
 
     cv::Mat gray;
     int channel = frame.channels();
-    if ( channel == 3 || channel == 4) {
+    if (channel == 3 || channel == 4) {
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
     }
     else
     {
-		gray = frame;
+        gray = frame;
     }
 
-    cv::equalizeHist(gray, gray);   //　Uniformize the histogram (robust to lighting)
+    cv::equalizeHist(gray, gray);
 
-    // パラメータは必要に応じて調整
     std::vector<cv::Rect> faces;
     std::vector<int> rejectLevels;
     std::vector<double> levelWeights;
 
     haarCascade_.detectMultiScale(gray, faces, rejectLevels, levelWeights,
-        HaarCascadeScaleFactor,                                         // scaleFactor (1.2)
-        HaarCascadeMinNeighbors,                                        // minNeighbors (10)
-        HaarCascadeFlags,                                               // flags (DO_CANNY_PRUNING)
-        cv::Size(HaarCascadeMinFaceWidth, HaarCascadeMinFaceHeight),    // minSize (110, 110)
-		cv::Size(HaarCascadeMaxFaceWidth, HaarCascadeMaxFaceHeight),    // maxSize (default: no limit)
-		true                                // outputRejectLevels = true 
-                                            // (to get rejectLevels and levelWeights)
+        HaarCascadeScaleFactor,
+        HaarCascadeMinNeighbors,
+        HaarCascadeFlags,
+        cv::Size(HaarCascadeMinFaceWidth, HaarCascadeMinFaceHeight),
+        cv::Size(HaarCascadeMaxFaceWidth, HaarCascadeMaxFaceHeight),
+        true
     );
 
-    // levelWeights[i] will be the weight
+    std::vector<cv::Rect> validFaces;
     for (size_t i = 0; i < faces.size(); ++i) {
         double raw = levelWeights[i];
-        // Example: raw around 1 gives score 0.5, change is relaxed by 1/5
-        double scale = 2.0;   // Increasing this makes score changes more gradual
+        double scale = 2.0;
         double score = 1.0 / (1.0 + std::exp(-(raw - 1.0) / scale));
-        // Normalize to 0..1 (e.g., sigmoid style or min-max)
-        // double score = 1.0 / (1.0 + std::exp(-(raw - 1.0))); // Example: convert raw using sigmoid
-        // Or if min/max are known: (raw - min)/(max-min)
-		// display the score on the top-left corner of the bounding box
+
+        if (score < 0.6) continue;
+
         cv::putText(frame, cv::format("%.2f", score), faces[i].tl() + cv::Point(2, 14),
             cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(203, 192, 255), 1);
+
+        validFaces.push_back(faces[i]);
     }
 
-    outRects = std::move(faces);
+    outRects = std::move(validFaces);
 }
 
 void FaceDetector::DrawBoundingBoxesHaar(cv::Mat& frame, const std::vector<cv::Rect>& haarRects) const
 {
     int centerFaceIndex = 0;
-    int minDistance2 = std::numeric_limits<int>::max(); // large initial value
+    int minDistance2 = std::numeric_limits<int>::max();
 
-    // 4b. Haar draw bounding boxes
     for (int i = 0; i < haarRects.size(); ++i) {
         int x = haarRects[i].x;
-		int y = haarRects[i].y;
-		int w = haarRects[i].width;
-		int h = haarRects[i].height;
-		int faceCenterX = x + (w / 2);
-		int faceCenterY = y + (h / 2);
-		int dx = faceCenterX - GetFrameWidth() / 2;
-		int dy = faceCenterY - GetFrameHeight() / 2;
-		if ( (dx*dx + dy*dy) < minDistance2 ) {
-			centerFaceIndex = i;
-			minDistance2 = dx*dx + dy*dy;
-		}
+        int y = haarRects[i].y;
+        int w = haarRects[i].width;
+        int h = haarRects[i].height;
+        int faceCenterX = x + (w / 2);
+        int faceCenterY = y + (h / 2);
+        int dx = faceCenterX - GetFrameWidth() / 2;
+        int dy = faceCenterY - GetFrameHeight() / 2;
+        if ((dx * dx + dy * dy) < minDistance2) {
+            centerFaceIndex = i;
+            minDistance2 = dx * dx + dy * dy;
+        }
     }
     for (int i = 0; i < haarRects.size(); ++i) {
         cv::Scalar bgrColor = (i == centerFaceIndex) ? cv::Scalar(255, 0, 255) : cv::Scalar(100, 50, 150);
@@ -293,7 +267,6 @@ void FaceDetector::SetupWindow()
     }
 }
 
-// Accessors
 bool FaceDetector::IsCameraInitialized() const
 {
     return cameraInitialized_;
@@ -329,12 +302,9 @@ int FaceDetector::GetFrameHeight() const
     return frameHeight_;
 }
 
-
 void FaceDetector::RecordDetectionLatency(double latencyMs)
 {
     m_totalFrames++;
-    // atomic<double> への加算 (C++20以前では fetch_add が使えないため CAS ループを使用する等の対策が必要ですが、
-    // 単一スレッドでの記録であれば直接代入でも可。ここでは安全に更新します)
     double currentVal = m_totalLatencyMs.load();
     while (!m_totalLatencyMs.compare_exchange_weak(currentVal, currentVal + latencyMs)) {
     }
@@ -353,17 +323,16 @@ void FaceDetector::FlushAndResetDetectionData(FaceDetectionMethod currentMethod)
 
         std::wstring modeStr = L"Unknown";
         if (currentMethod == FaceDetectionMethod::HaarCascades) {
-            modeStr = L"HaarCascades";
+            modeStr = wFACE_DETECTION_METHOD_HAARCASCADES;
         }
         else if (currentMethod == FaceDetectionMethod::YuNet) {
-            modeStr = L"YuNet";
+            modeStr = wFACE_DETECTION_METHOD_YUNET;
         }
         else if (currentMethod == FaceDetectionMethod::Both) {
-            modeStr = L"Both";
+            modeStr = wFACE_DETECTION_METHOD_BOTH;
         }
 
-        // ★ 第5引数 (frames) をついか
-        SaveEvaluationLatencyCsv(L"FaceDetectionLatency", modeStr, avgLatencyMs, equivalentFps, static_cast<long long>(frames));
+        SaveEvaluationLatencyCsv(wFACE_DETECTION_LATENCY_FOLDER_NAME, modeStr, avgLatencyMs, equivalentFps, static_cast<long long>(frames));
 
         m_totalFrames.store(0);
         m_totalLatencyMs.store(0.0);

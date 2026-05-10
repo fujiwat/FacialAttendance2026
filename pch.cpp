@@ -1,5 +1,7 @@
-﻿// pch.cpp: source file corresponding to the pre-compiled header
+﻿/**
+ * @file pch.cpp
+ * @brief Source file explicitly associated with the precompiled header configuration.
+ *        Required by the Microsoft Visual C++ compiler for correct PCH linkage.
+ */
 
 #include "pch.h"
-
-// When you are using pre-compiled headers, this source file is necessary for compilation to succeed.

@@ -2,26 +2,47 @@
 #include <windows.h>
 #include "OpenCV_without_warning.h"
 
+/**
+ * @brief Manages dynamic overlay brightness adjusting system lighting matching ambient or face inputs limits.
+ */
 class AdaptiveScreenLight
 {
 public:
     AdaptiveScreenLight();
     ~AdaptiveScreenLight();
 
-    // enabled=true でカメラON時に呼ぶ。parentHwnd はメインダイアログのHWND
+    /**
+     * @brief Engages visual overlays processing attaching hooks onto targeted parents securely.
+     * @param enabled Set true matching active webcam operation.
+     * @param parentHwnd Main dialogue target receiving feedback natively.
+     */
     void SetEnabled(bool enabled, HWND parentHwnd = nullptr);
     bool IsEnabled() const { return enabled_; }
 
-    // 最小化・復元の連動（OnSysCommandから呼ぶ）
+    /**
+     * @brief Triggers visibility linking minimizing behaviors against the main interface forms natively.
+     * @param minimized Window visibility flag indicator determining logic.
+     */
     void SetMinimized(bool minimized);
 
-    // 毎フレーム呼び出す（ワーカースレッドからOK）
+    /**
+     * @brief Computes logic calculating frames adjusting intensities dynamically based on ambient metrics.
+     * @param frame Processed visualization matrix evaluated.
+     * @param faceRect Bounding structure defining main prioritized lighting targets natively.
+     * @param manualBrightness Manually assigned intensity thresholds.
+     */
     void Update(const cv::Mat& frame, const cv::Rect& faceRect, float manualBrightness = -1.0f);
 
-    // 手動で明るさを設定してUIに即反映させる（UIスレッド用）
+    /**
+     * @brief Implements user-dictated numeric settings bypassing automatic light balancing mechanisms.
+     * @param brightness Scale defining active percentage threshold targeting UI limits.
+     */
     void ApplyManualBrightness(float brightness);
 
-    // UIスレッドから呼ぶ（PostMessage経由）
+    /**
+     * @brief Maps active coloration signals updating UI components properly via message queue overrides.
+     * @param color Evaluated RGB structures.
+     */
     void ApplyColor(COLORREF color);
 
 private:
@@ -30,15 +51,12 @@ private:
     void DestroyBackgroundWindow();
     void RepaintBackground();
 
-    // ★追加: 描画ヘルパー関数
     COLORREF CalculateTextColor(COLORREF bgColor) const;
     void DrawStatusText(HDC hdc, const RECT& clientRc, const char* text, COLORREF textColor);
 
-    float     MeasureFaceBrightness(const cv::Mat& frame,
-                                    const cv::Rect& faceRect) const;
+    float     MeasureFaceBrightness(const cv::Mat& frame, const cv::Rect& faceRect) const;
     float     MeasureAmbientBrightness(const cv::Mat& frame) const;
-    cv::Vec3b EstimateSkinTone(const cv::Mat& frame,
-                               const cv::Rect& faceRect) const;
+    cv::Vec3b EstimateSkinTone(const cv::Mat& frame, const cv::Rect& faceRect) const;
     COLORREF  ComputeColor(float brightness, const cv::Vec3b& skinBgr) const;
 
     HWND      hwndBackground_;
@@ -50,8 +68,8 @@ private:
     float     lastAmbient_;
     float     lastTarget_;
 
-    static constexpr float kMinBrightness = 0.50f;  // 常に最低50%は保つ
-    static constexpr float kStepUp           = 0.02f;
-    static constexpr float kStepDown         = 0.01f;
-    static constexpr float kDeadZone         = 0.02f;  // 目標値±2%は変化しない
+    static constexpr float kMinBrightness = 0.50f;
+    static constexpr float kStepUp = 0.02f;
+    static constexpr float kStepDown = 0.01f;
+    static constexpr float kDeadZone = 0.02f;
 };

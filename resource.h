@@ -8,6 +8,7 @@
 #define IDD_FACIALATTENDANCE2026_DIALOG 102
 #define IDR_MAINFRAME                   128
 #define IDR_MENU1                       130
+#define IDD_DIALOG_SETTINGS             131
 #define IDC_STATIC_PREVIEW              1000
 #define IDC_BUTTON_PHOTO_OK             1001
 #define IDC_COMBO_CAMERA                1002
@@ -27,6 +28,9 @@
 #define IDC_STATIC_DETCT2               1016
 #define IDC_COMBO_FACE_DETECTOR         1017
 #define IDC_COMBO_FACE_IDENTIFIER       1018
+#define IDC_CHECK_REQUIRES_ID           1018
+#define IDC_CHECK_REQUIRES_ID2          1019
+#define IDC_CHECK_MIRROR_VIEW           1019
 #define IDC_STATIC_NAME                 1020
 #define IDC_COMBO_NAME                  1021
 #define IDC_STATIC_ID                   1022
@@ -55,14 +59,15 @@
 #define ID_FACEIDENTIFICATION_ALL       32782
 #define ID_EVALUATION_FACEDETECTION32783 32783
 #define ID_EVALUATION_FACEIDENTIFICATION32784 32784
+#define ID_FILE_SETTINGS                32785
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        131
-#define _APS_NEXT_COMMAND_VALUE         32785
-#define _APS_NEXT_CONTROL_VALUE         1018
+#define _APS_NEXT_RESOURCE_VALUE        133
+#define _APS_NEXT_COMMAND_VALUE         32786
+#define _APS_NEXT_CONTROL_VALUE         1019
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

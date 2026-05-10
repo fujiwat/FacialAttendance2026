@@ -206,11 +206,13 @@
     <ClInclude Include="FacialAttendance2026Dlg.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="MyConst.h" />
+    <ClInclude Include="MyEigenfaces.h" />
     <ClInclude Include="MyFunctions.h" />
     <ClInclude Include="MyLBPH.h" />
     <ClInclude Include="OpenCV_without_warning.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="SettingDlg.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
@@ -219,6 +221,7 @@
     <ClCompile Include="FaceIdentifier.cpp" />
     <ClCompile Include="FacialAttendance2026.cpp" />
     <ClCompile Include="FacialAttendance2026Dlg.cpp" />
+    <ClCompile Include="MyEigenfaces.cpp" />
     <ClCompile Include="MyFunctions.cpp" />
     <ClCompile Include="MyLBPH.cpp" />
     <ClCompile Include="pch.cpp">
@@ -227,11 +230,13 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="SettingDlg.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FacialAttendance2026.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".editorconfig" />
     <None Include="FacialAttendance2026Dlg.cpp (OnInitDialog の末尾)" />
     <None Include="res\FacialAttendance2026.rc2" />
   </ItemGroup>

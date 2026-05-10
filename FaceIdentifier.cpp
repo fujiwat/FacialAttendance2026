@@ -5,27 +5,41 @@
 #include "MyConst.h"
 #include "MyLBPH.h"
 
+/**
+ * @brief Default constructor for FaceIdentifier.
+ */
 FaceIdentifier::FaceIdentifier()
 {
 }
 
+/**
+ * @brief Destructor for FaceIdentifier. Releases any allocated resources and models.
+ */
 FaceIdentifier::~FaceIdentifier()
 {
+    if (sface_) {
+        sface_.release();
+    }
+    sfaceFeaturesMap_.clear();
+    lbphFeaturesMap_.clear();
+    eigenfacesRawImages_.clear();
 }
 
+/**
+ * @brief Initializes the necessary components and models for face identification.
+ * @param modelFolder The path to the directory containing model files (e.g., ONNX model for SFace).
+ * @return True if critical models (such as SFace) load successfully; otherwise false.
+ */
 bool FaceIdentifier::Initialize(const std::string& modelFolder)
 {
+    lbphLoaded_ = true;
+    eigenfacesLoaded_ = true;
     try {
-        // 自作LBPHの準備 (特にモデルファイルはないため常にTrue)
-        lbphLoaded_ = true;
-
-        // SFace の準備
         std::string sfaceModelPath = "face_recognition_sface_2021dec.onnx";
         sface_ = cv::FaceRecognizerSF::create(sfaceModelPath, "");
         if (sface_) {
             sfaceLoaded_ = true;
         }
-
         return true;
     }
     catch (const cv::Exception&) {
@@ -38,6 +52,13 @@ bool FaceIdentifier::Initialize(const std::string& modelFolder)
     }
 }
 
+/**
+ * @brief Routes the incoming image and features to the selected identification method.
+ * @param method The facial recognition method to use (Eigenfaces, LBPH, SFace).
+ * @param faceImage The source bounding box image of the face.
+ * @param faceData Detection metadata including bounding box and landmark points.
+ * @return A result object containing the matched name, numeric distance, and validity.
+ */
 IdentificationResult FaceIdentifier::Identify(FaceIdentificationMethod method, const cv::Mat& faceImage, const std::vector<float>& faceData)
 {
     IdentificationResult result;
@@ -47,7 +68,7 @@ IdentificationResult FaceIdentifier::Identify(FaceIdentificationMethod method, c
 
     switch (method) {
     case FaceIdentificationMethod::Eigenfaces:
-        return IdentifyEigenfaces(faceImage);
+        return IdentifyEigenfaces(faceImage, faceData);
 
     case FaceIdentificationMethod::LBPH:
         return IdentifyLBPH(faceImage, faceData);
@@ -59,21 +80,76 @@ IdentificationResult FaceIdentifier::Identify(FaceIdentificationMethod method, c
     return result;
 }
 
-IdentificationResult FaceIdentifier::IdentifyEigenfaces(const cv::Mat& faceImage)
+/**
+ * @brief Performs face identification utilizing the Eigenfaces algorithm.
+ * @param faceImage The cropped input image containing the face.
+ * @param faceData Landmark metadata required for initial extraction.
+ * @return The result of the Eigenfaces matching.
+ */
+IdentificationResult FaceIdentifier::IdentifyEigenfaces(const cv::Mat& faceImage, const std::vector<float>& faceData)
 {
     IdentificationResult result;
     result.name = "Unknown";
     result.isValid = false;
+
+    if (!eigenfacesLoaded_ || !myEigenfaces_.IsTrained()) {
+        return result;
+    }
+
+    cv::TickMeter tmExtraction;
+    tmExtraction.start();
+    cv::Mat crop = ExtractFace(faceImage, faceData);
+    cv::Mat gray;
+    if (crop.channels() == 3) cv::cvtColor(crop, gray, cv::COLOR_BGR2GRAY);
+    else gray = crop.clone();
+
+    cv::Mat testImg;
+    cv::resize(gray, testImg, cv::Size(112, 112));
+    tmExtraction.stop();
+    RecordExtractionLatency(tmExtraction.getTimeMilli());
+
+    cv::TickMeter tmMatching;
+    int profileCount = static_cast<int>(eigenfacesRawImages_.size());
+
+    tmMatching.start();
+    auto bestMatch = myEigenfaces_.Predict(testImg);
+    tmMatching.stop();
+
+    if (profileCount > 0) {
+        RecordMatchingLatency(tmMatching.getTimeMilli(), profileCount);
+    }
+
+    double threshold = 25000.0;
+
+    result.distance = bestMatch.second;
+    if (result.distance < threshold) {
+        result.name = bestMatch.first;
+        result.isValid = true;
+    }
+    else {
+        std::string distStr = std::to_string(static_cast<int>(result.distance));
+        result.name = "Unk(" + bestMatch.first + "/" + distStr + ")";
+        result.isValid = false;
+    }
+
     return result;
 }
 
+/**
+ * @brief Normalizes and crops the face region based on facial landmarks, if available.
+ *        Falls back to a standard square crop if advanced alignment is not possible.
+ * @param faceImage The unaligned localized face image array.
+ * @param faceData Bounding box or detailed landmarks for extraction.
+ * @return A 112x112 aligned face matrix.
+ */
 cv::Mat FaceIdentifier::ExtractFace(const cv::Mat& faceImage, const std::vector<float>& faceData)
 {
     cv::Mat alignedFace;
     bool aligned = false;
 
-    // SFaceがロードされていればSFaceの強力なアライメント(目鼻位置合わせ)を間借りする
-    if (sfaceLoaded_ && sface_ && !faceData.empty() && faceData.size() >= 15) {
+    bool isHaarDummy = (!faceData.empty() && faceData.size() >= 15 && faceData[14] == 1.0f);
+
+    if (sfaceLoaded_ && sface_ && !faceData.empty() && faceData.size() >= 15 && !isHaarDummy) {
         cv::Mat faceBox(1, 15, CV_32FC1);
         for (int i = 0; i < 15; i++) faceBox.at<float>(0, i) = faceData[i];
         try {
@@ -83,7 +159,6 @@ cv::Mat FaceIdentifier::ExtractFace(const cv::Mat& faceImage, const std::vector<
         catch (...) {}
     }
 
-    // アライメント失敗、または純粋な切り抜き
     if (!aligned) {
         if (!faceData.empty() && faceData.size() >= 4) {
             int x = std::max(0, static_cast<int>(faceData[0]));
@@ -114,6 +189,12 @@ cv::Mat FaceIdentifier::ExtractFace(const cv::Mat& faceImage, const std::vector<
     return alignedFace;
 }
 
+/**
+ * @brief Performs face identification utilizing the Custom LBPH algorithm.
+ * @param faceImage The source cropped face image matrix.
+ * @param faceData Detection metadata used for face alignment.
+ * @return The result encompassing identifying details from the LBPH map.
+ */
 IdentificationResult FaceIdentifier::IdentifyLBPH(const cv::Mat& faceImage, const std::vector<float>& faceData)
 {
     IdentificationResult result;
@@ -124,31 +205,29 @@ IdentificationResult FaceIdentifier::IdentifyLBPH(const cv::Mat& faceImage, cons
         return result;
     }
 
-    // 1. 顔の切り出しとグレースケール化
+    cv::TickMeter tmExtraction;
+    tmExtraction.start();
+
     cv::Mat crop = ExtractFace(faceImage, faceData);
     cv::Mat gray;
     if (crop.channels() == 3) cv::cvtColor(crop, gray, cv::COLOR_BGR2GRAY);
     else gray = crop.clone();
 
-    // 2. 自作LBPH特徴量の抽出(グリッドは8x8)
-    cv::TickMeter tmExtraction;  // ★追加
-    tmExtraction.start();        // ★追加
     cv::Mat lbpImg = CustomLBPH::LBPHCalcImage(gray);
     cv::Mat testFeature = CustomLBPH::LBPHCalcSpatialHistogram(lbpImg, 8, 8);
-    tmExtraction.stop();         // ★追加
-    RecordExtractionLatency(tmExtraction.getTimeMilli()); // ★追加
+    tmExtraction.stop();
+    RecordExtractionLatency(tmExtraction.getTimeMilli());
 
-    // 3. 辞書と総当たりで比較 (距離が一番「小さい」ものを探す)
+    cv::TickMeter tmMatching;
     double minDistance = DBL_MAX;
     std::string bestMatchName = "Unk";
-    cv::TickMeter tmMatching;    // ★追加
-    int profileCount = 0;        // ★追加
+    int profileCount = 0;
 
-    tmMatching.start();          // ★追加
+    tmMatching.start();
     for (const auto& pair : lbphFeaturesMap_) {
         const std::string& personName = pair.first;
         for (const cv::Mat& dbFeature : pair.second) {
-            profileCount++;      // ★追加
+            profileCount++;
             double dist = CustomLBPH::LBPHCalcChiSquareDistance(testFeature, dbFeature);
             if (dist < minDistance) {
                 minDistance = dist;
@@ -156,12 +235,11 @@ IdentificationResult FaceIdentifier::IdentifyLBPH(const cv::Mat& faceImage, cons
             }
         }
     }
-    tmMatching.stop();           // ★追加
-    if (profileCount > 0) {      // ★追加
-        RecordMatchingLatency(tmMatching.getTimeMilli(), profileCount); // ★追加
+    tmMatching.stop();
+    if (profileCount > 0) {
+        RecordMatchingLatency(tmMatching.getTimeMilli(), profileCount);
     }
 
-    // カイ二乗距離のしきい値。環境や解像度で異なるため調整が必要(例として9000.0)
     double threshold = 9000.0;
 
     if (minDistance < threshold) {
@@ -179,19 +257,39 @@ IdentificationResult FaceIdentifier::IdentifyLBPH(const cv::Mat& faceImage, cons
     return result;
 }
 
+/**
+ * @brief Registers and encodes a verified face according to a specified mathematical method.
+ * @param method The target technique (Eigenfaces, LBPH, SFace).
+ * @param name Alphanumeric alias defining the entity.
+ * @param faceImage The localized captured face image context.
+ * @param faceData Contextual detector info like feature tracking structures.
+ */
 void FaceIdentifier::Enroll(FaceIdentificationMethod method, const std::string& name, const cv::Mat& faceImage, const std::vector<float>& faceData)
 {
     if (faceImage.empty() || name.empty()) return;
 
-    // 顔の切り出し
     cv::Mat alignedFace = ExtractFace(faceImage, faceData);
+
+    if (method == FaceIdentificationMethod::Eigenfaces) {
+        cv::Mat gray;
+        if (alignedFace.channels() == 3) cv::cvtColor(alignedFace, gray, cv::COLOR_BGR2GRAY);
+        else gray = alignedFace.clone();
+
+        cv::Mat addImg;
+        cv::resize(gray, addImg, cv::Size(112, 112));
+
+        eigenfacesRawImages_.push_back(addImg.clone());
+        eigenfacesLabels_.push_back(name);
+
+        myEigenfaces_.Train(eigenfacesRawImages_, eigenfacesLabels_);
+        return;
+    }
 
     if (method == FaceIdentificationMethod::LBPH) {
         cv::Mat gray;
         if (alignedFace.channels() == 3) cv::cvtColor(alignedFace, gray, cv::COLOR_BGR2GRAY);
         else gray = alignedFace.clone();
 
-        // 特徴量化してマップに追加
         cv::Mat lbpImg = CustomLBPH::LBPHCalcImage(gray);
         cv::Mat histFeature = CustomLBPH::LBPHCalcSpatialHistogram(lbpImg, 8, 8);
         lbphFeaturesMap_[name].push_back(histFeature.clone());
@@ -203,11 +301,10 @@ void FaceIdentifier::Enroll(FaceIdentificationMethod method, const std::string& 
         cv::Mat feature;
         cv::TickMeter tmExtraction;
         try {
-            tmExtraction.start(); // ★計測開始
+            tmExtraction.start();
             sface_->feature(alignedFace, feature);
-            tmExtraction.stop();  // ★計測終了
+            tmExtraction.stop();
 
-            // ★自身のメンバメソッドを呼んで記録
             RecordExtractionLatency(tmExtraction.getTimeMilli());
 
             sfaceFeaturesMap_[name].push_back(feature.clone());
@@ -217,6 +314,12 @@ void FaceIdentifier::Enroll(FaceIdentificationMethod method, const std::string& 
     }
 }
 
+/**
+ * @brief Matches an inputted face against enrolled parameters using SFace networking representations.
+ * @param faceImage The provided image matrix bounding the localized face.
+ * @param faceData Array enclosing bounding box sizes directly tied to structural positions.
+ * @return Validation output referencing closest match probability strings against baseline limits.
+ */
 IdentificationResult FaceIdentifier::IdentifySFace(const cv::Mat& faceImage, const std::vector<float>& faceData)
 {
     IdentificationResult result;
@@ -231,9 +334,9 @@ IdentificationResult FaceIdentifier::IdentifySFace(const cv::Mat& faceImage, con
     cv::Mat feature;
     cv::TickMeter tmExtraction;
     try {
-        tmExtraction.start(); // ★計測開始
+        tmExtraction.start();
         sface_->feature(alignedFace, feature);
-        tmExtraction.stop();  // ★計測終了
+        tmExtraction.stop();
         RecordExtractionLatency(tmExtraction.getTimeMilli());
     }
     catch (...) {
@@ -246,33 +349,29 @@ IdentificationResult FaceIdentifier::IdentifySFace(const cv::Mat& faceImage, con
         return result;
     }
 
-    // ★修正：「一番数字が大きい＝一番似ている」スコアを探す
-    double maxSimilarity = -1.0;  // 一番低い値(-1.0)からスタート
+    double maxSimilarity = -1.0;
     std::string bestMatchName = "Unk";
 
-    cv::TickMeter tmMatching; // ★追加: Matching用タイマー
-    int profileCount = 0;     // ★比較した人数（特徴量）のカウント用
+    cv::TickMeter tmMatching;
+    int profileCount = 0;
 
-    tmMatching.start(); // ★ループ全体の計測開始
+    tmMatching.start();
     for (const auto& pair : sfaceFeaturesMap_) {
         const std::string& personName = pair.first;
         for (const cv::Mat& dbFeature : pair.second) {
-            profileCount++; // ★プロファイル数をカウント
+            profileCount++;
             double score = sface_->match(feature, dbFeature, cv::FaceRecognizerSF::DisType::FR_COSINE);
-            // 類似度が今までの最高記録を開新したら上書きする
             if (score > maxSimilarity) {
                 maxSimilarity = score;
                 bestMatchName = personName;
             }
         }
     }
-    tmMatching.stop(); // ★ループ全体の計測終了
-    // ★自身のメンバメソッドを呼んで記録 (割る処理はメソッド内でやってくれます)
+    tmMatching.stop();
     if (profileCount > 0) {
         RecordMatchingLatency(tmMatching.getTimeMilli(), profileCount);
     }
 
-    // 「本人であれば 0.70 〜 0.95前後」という高いスコアが出るため、しきい値(類似度)を 0.70 に設定
     double testScore = 0.70;
 
     if (maxSimilarity >= testScore) {
@@ -291,17 +390,38 @@ IdentificationResult FaceIdentifier::IdentifySFace(const cv::Mat& faceImage, con
     return result;
 }
 
+/**
+ * @brief Validates if the Eigenfaces engine component has been successfully allocated.
+ * @return True if readily accessible.
+ */
 bool FaceIdentifier::IsEigenfacesLoaded() const { return eigenfacesLoaded_; }
+
+/**
+ * @brief Validates if the internal LBPH matching logic variables have been activated.
+ * @return True if initialized appropriately.
+ */
 bool FaceIdentifier::IsLBPHLoaded() const { return lbphLoaded_; }
+
+/**
+ * @brief Reports on the capability of applying SFace inferences checking backend readiness strings.
+ * @return Boolean signal denoting operation eligibility.
+ */
 bool FaceIdentifier::IsSFaceLoaded() const { return sfaceLoaded_; }
 
-/// 抽出時間の記録
+/**
+ * @brief Consolidates feature derivation timeframe variables incrementally storing quantities.
+ * @param timeMs Count in milliseconds describing the operation latency.
+ */
 void FaceIdentifier::RecordExtractionLatency(double timeMs) {
     totalExtractionTimeMs_ += timeMs;
     extractionCount_++;
 }
 
-// 照合時間（プロファイルあたり）の記録
+/**
+ * @brief Accumulates computational periods evaluated through similarity match profiles.
+ * @param totalTimeMs Total sum delay resolving dictionary.
+ * @param numProfiles Amount of existing enrollment items matched against.
+ */
 void FaceIdentifier::RecordMatchingLatency(double totalTimeMs, int numProfiles) {
     if (numProfiles > 0) {
         totalMatchingTimePerProfileMs_ += (totalTimeMs / numProfiles);
@@ -309,7 +429,10 @@ void FaceIdentifier::RecordMatchingLatency(double totalTimeMs, int numProfiles) 
     }
 }
 
-// CSVへのエクスポート
+/**
+ * @brief Saves combined metrics relating latencies processed and zeroes tracking indicators.
+ * @param currentMethod Origin algorithm context.
+ */
 void FaceIdentifier::FlushAndResetIdentificationData(FaceIdentificationMethod currentMethod)
 {
     if (extractionCount_ == 0 && matchingCount_ == 0) return;
@@ -318,14 +441,17 @@ void FaceIdentifier::FlushAndResetIdentificationData(FaceIdentificationMethod cu
     double avg_matching = (matchingCount_ > 0) ? (totalMatchingTimePerProfileMs_ / matchingCount_) : 0.0;
 
     std::wstring modeStr = L"Unknown";
-    if (currentMethod == FaceIdentificationMethod::Eigenfaces) modeStr = L"Eigenfaces";
-    else if (currentMethod == FaceIdentificationMethod::LBPH) modeStr = L"LBPH";
-    else if (currentMethod == FaceIdentificationMethod::SFace) modeStr = L"SFace";
+    if (currentMethod == FaceIdentificationMethod::Eigenfaces) {
+        modeStr = wFACE_IDENTIFICATION_METHOD_Eigenfaces;
+    }
+    else if (currentMethod == FaceIdentificationMethod::LBPH) {
+        modeStr = wFACE_IDENTIFICATION_METHOD_LBPH;
+    }
+    else if (currentMethod == FaceIdentificationMethod::SFace) {
+        modeStr = wFACE_IDENTIFICATION_METHOD_SFace;
+    }
+    SaveEvaluationLatencyCsv(wFACE_IDENTIFICATION_LATENCY_FOLDER_NAME, modeStr, avg_extraction, avg_matching, static_cast<long long>(extractionCount_));
 
-    // ★ 第5引数に extractionCount_ をキャストして渡す
-    SaveEvaluationLatencyCsv(L"FaceIdentificationLatency", modeStr, avg_extraction, avg_matching, static_cast<long long>(extractionCount_));
-
-    // 最後に必ずカウンタをリセット
     totalExtractionTimeMs_ = 0.0;
     extractionCount_ = 0;
     totalMatchingTimePerProfileMs_ = 0.0;

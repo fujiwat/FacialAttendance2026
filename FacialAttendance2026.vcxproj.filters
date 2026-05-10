@@ -45,13 +45,19 @@
     <ClInclude Include="OpenCV_without_warning.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AdaptiveScreenLight.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="FaceIdentifier.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="MyLBPH.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MyEigenfaces.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SettingDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AdaptiveScreenLight.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -71,13 +77,19 @@
     <ClCompile Include="MyFunctions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AdaptiveScreenLight.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="FaceIdentifier.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="MyLBPH.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MyEigenfaces.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SettingDlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AdaptiveScreenLight.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -91,6 +103,7 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="FacialAttendance2026Dlg.cpp (OnInitDialog の末尾)" />
+    <None Include=".editorconfig" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\FacialAttendance2026.ico">
