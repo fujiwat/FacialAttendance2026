@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "AdaptiveScreenLight.h"
 #include "FacialAttendance2026Dlg.h"    
 #include <thread>
@@ -338,8 +338,8 @@ cv::Vec3b AdaptiveScreenLight::EstimateSkinTone(const cv::Mat& frame, const cv::
 COLORREF AdaptiveScreenLight::ComputeColor(float brightness, const cv::Vec3b& skinBgr) const
 {
     const float r = 255.0f;
-    const float g = 230.0f;
-    const float b = 190.0f;
+    const float g = 245.0f;
+    const float b = 220.0f;
 
     return RGB(
         std::min(255, static_cast<int>(r * brightness)),
