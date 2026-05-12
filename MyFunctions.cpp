@@ -13,6 +13,7 @@
 #include "FaceDetector.h"
 #include "MyFunctions.h"
 #include "MyConst.h"
+#include "CMyMsgBox.h"
 
 std::wstring g_wAppNameShort;
 std::string  g_appNameShort;
@@ -112,7 +113,7 @@ static std::wstring GetDocumentsPath()
  * @brief Retrieves or creates the application's specific folder path.
  * @return The application folder path.
  */
-static std::wstring GetAppFolderPath()
+std::wstring GetAppFolderPath()
 {
     std::wstring docsPath = GetDocumentsPath();
     if (docsPath.empty()) return L"";
@@ -249,17 +250,23 @@ static void AppendEvaluationDataToCsv(const std::wstring& filePath, const std::w
     }
 }
 
-void MyMessageBoxW(HWND parent, UINT type, const std::wstring& title, const wchar_t* format, ...)
+int MyMessageBoxW(HWND parent, UINT type, const std::wstring& title, const wchar_t* format, ...)
 {
     va_list args;
     va_start(args, format);
     std::wstring msg = VFormatW(format, args);
     va_end(args);
 
-    MessageBoxW(parent, msg.c_str(), title.c_str(), type);
+    CMyMsgBox dlg(CWnd::FromHandle(parent));
+
+    dlg.m_strMessage = msg.c_str();
+    dlg.m_strTitle = title.c_str();
+    dlg.m_nType = type; 
+
+    return (int)dlg.DoModal();
 }
 
-void MyMessageBoxA(HWND parent, UINT type, const std::string& titleA, const char* format, ...)
+int MyMessageBoxA(HWND parent, UINT type, const std::string& titleA, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
@@ -269,14 +276,19 @@ void MyMessageBoxA(HWND parent, UINT type, const std::string& titleA, const char
     std::wstring msgW = ToWString(msgA);
     std::wstring titleW = ToWString(titleA);
 
-    MessageBoxW(parent, msgW.c_str(), titleW.c_str(), type);
+    CMyMsgBox dlg(CWnd::FromHandle(parent));
+    dlg.m_strMessage = msgW.c_str();
+    dlg.m_strTitle = titleW.c_str();
+
+    return (int)dlg.DoModal();
 }
 
 void ShowErrorA(const std::string& messageUtf8)
 {
     std::wstring wmsg = ToWString(messageUtf8);
     std::wstring wtitle = ToWString(APP_NAME_LONG);
-    MessageBoxW(NULL, wmsg.c_str(), wtitle.c_str(), MB_OK | MB_ICONERROR);
+
+    MyMessageBoxW(NULL, MB_OK | MB_ICONERROR, wtitle, L"%s", wmsg.c_str());
 }
 
 FpsCounter::FpsCounter() noexcept
@@ -321,7 +333,7 @@ double FpsCounter::get() const noexcept
 //
 //std::string ToString(const std::wstring& wstr) {
 //    if (wstr.empty()) return "";
-//    int size = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
+//    int size = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0);
 //    std::string result(size, 0);
 //    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &result[0], size, NULL, NULL);
 //    return result;

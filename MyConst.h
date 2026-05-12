@@ -3,8 +3,8 @@
 #pragma region Application_Constants
 #	define APP_NAME_SHORT "FacialAttendance2026"                                    /**< Short ANSI name of the application. */
 #	define wAPP_NAME_SHORT L"FacialAttendance2026"                                  /**< Short wide-char name of the application. */
-#	define APP_NAME_LONG "FacialAttendance2026 - YuNet/HaarCascade Face Detection"  /**< Descriptive ANSI long name of the application. */
-#	define wAPP_NAME_LONG L"FacialAttendance2026 - YuNet/HaarCascade Face Detection"/**< Descriptive wide-char long name of the application. */
+#	define APP_NAME_LONG "FacialAttendance2026 - Friendly Facial Attendance"  /**< Descriptive ANSI long name of the application. */
+#	define wAPP_NAME_LONG L"FacialAttendance2026 - Friendly Facial Attendance"/**< Descriptive wide-char long name of the application. */
 #pragma endregion
 
 #pragma region Camera_Constants
@@ -41,6 +41,7 @@
 
 
 #pragma region FACE_RECOGNITION
+#	define ENROLLED_FACES_XML "enrolled_faces.xml"            /**< The file storing the enrolled face matrices and identity datasets globally. */
 const int MAX_FACE_RING_BUFFER = 300;	                  /**< The maximum amount of retained tracking arrays maintained simultaneously (roughly 10s at 30 fps). */
 const int FACE_RING_BUFFER_TIMEOUT_MS = 3000;             /**< Absolute logical lifespan (ms) restricting persistence securely preventing invalid memory bloats. */
 const double FACE_TARGET_JUMP_RATIO = 0.6;                /**< Frame transition coordinate ratio defining when a jump resets tracking. */
@@ -69,5 +70,6 @@ const double FACE_WEIGHT_CONTRAST = 0.2;                 /**< Evaluated weight f
 #	define REG_KEY_FACE_IDENTIFICATION_MODE _T("FaceIdentificationMode")     /**< Face identification setting registry key. */
 #   define REG_KEY_OPTION_REQUIREDS_ID _T("OptionRequiresID")                /**< Require ID setting registry key. */
 #   define REG_KEY_OPTION_MIRROR_VIEW _T("OptionMirrorView")                 /**< Camera mirror view setting registry key. */
+#   define REG_KEY_LAST_CAMERA_INDEX _T("LastCameraIndex")                   /**< Remember last selected camera index. */
 #   define DEF_KEY_OPTION_TRUE 1                                             /**< Default logical true value for registry settings. */
 #pragma endregion

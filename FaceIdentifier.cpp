@@ -1,5 +1,6 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include <fstream> 
+#include <cstdio>
 #include "FaceIdentifier.h"
 #include "MyFunctions.h"
 #include "MyConst.h"
@@ -128,7 +129,7 @@ IdentificationResult FaceIdentifier::IdentifyEigenfaces(const cv::Mat& faceImage
     }
     else {
         std::string distStr = std::to_string(static_cast<int>(result.distance));
-        result.name = "Unk(" + bestMatch.first + "/" + distStr + ")";
+        result.name = "Unknown(" + bestMatch.first + "/" + distStr + ")";
         result.isValid = false;
     }
 
@@ -249,7 +250,7 @@ IdentificationResult FaceIdentifier::IdentifyLBPH(const cv::Mat& faceImage, cons
     }
     else {
         std::string distStr = std::to_string(static_cast<int>(minDistance));
-        result.name = "Unk(" + bestMatchName + "/" + distStr + ")";
+        result.name = "Unknown(" + bestMatchName + "/" + distStr + ")";
         result.distance = minDistance;
         result.isValid = false;
     }
@@ -345,7 +346,7 @@ IdentificationResult FaceIdentifier::IdentifySFace(const cv::Mat& faceImage, con
     }
 
     if (sfaceFeaturesMap_.empty()) {
-        result.name = "Unk: No Data";
+        result.name = "Unknown: No Data";
         return result;
     }
 
@@ -382,7 +383,7 @@ IdentificationResult FaceIdentifier::IdentifySFace(const cv::Mat& faceImage, con
     else {
         std::string distStr = std::to_string(maxSimilarity);
         if (distStr.length() > 4) distStr = distStr.substr(0, 4);
-        result.name = "Unk(" + distStr + ")";
+        result.name = "Unknown(" + distStr + ")";
         result.distance = maxSimilarity;
         result.isValid = false;
     }
@@ -456,4 +457,133 @@ void FaceIdentifier::FlushAndResetIdentificationData(FaceIdentificationMethod cu
     extractionCount_ = 0;
     totalMatchingTimePerProfileMs_ = 0.0;
     matchingCount_ = 0;
+}
+
+bool FaceIdentifier::SaveModelsToXml() const
+{
+    std::wstring appFolder = GetAppFolderPath();
+    CStringW wAppFolder(appFolder.c_str());
+    CStringA aAppFolder(wAppFolder);
+    std::string fullPath = std::string((LPCSTR)aAppFolder) + "\\" + ENROLLED_FACES_XML;
+
+
+    cv::FileStorage fs(fullPath, cv::FileStorage::WRITE);
+    if (!fs.isOpened()) return false;
+
+    // Save LBPH Features
+    fs << "LBPH" << "{";
+    fs << "Count" << (int)lbphFeaturesMap_.size();
+    fs << "Items" << "[";
+    for (const auto& pair : lbphFeaturesMap_) {
+        fs << "{";
+        fs << "Name" << pair.first;
+        fs << "Features" << "[";
+        for (const auto& mat : pair.second) {
+            fs << mat;
+        }
+        fs << "]";
+        fs << "}";
+    }
+    fs << "]";
+    fs << "}";
+
+    // Save SFace Features
+    fs << "SFace" << "{";
+    fs << "Count" << (int)sfaceFeaturesMap_.size();
+    fs << "Items" << "[";
+    for (const auto& pair : sfaceFeaturesMap_) {
+        fs << "{";
+        fs << "Name" << pair.first;
+        fs << "Features" << "[";
+        for (const auto& mat : pair.second) {
+            fs << mat;
+        }
+        fs << "]";
+        fs << "}";
+    }
+    fs << "]";
+    fs << "}";
+
+    fs.release();
+    return true;
+}
+
+bool FaceIdentifier::LoadModelsFromXml()
+{
+    std::wstring appFolder = GetAppFolderPath();
+    CStringW wAppFolder(appFolder.c_str());
+    CStringA aAppFolder(wAppFolder);
+    std::string fullPath = std::string((LPCSTR)aAppFolder) + "\\" + ENROLLED_FACES_XML;
+
+    cv::FileStorage fs(fullPath, cv::FileStorage::READ);
+    if (!fs.isOpened()) return false;
+
+    // Load LBPH Features
+    cv::FileNode lbphNode = fs["LBPH"];
+    if (!lbphNode.empty()) {
+        lbphFeaturesMap_.clear();
+        cv::FileNode items = lbphNode["Items"];
+        for (cv::FileNodeIterator it = items.begin(); it != items.end(); ++it) {
+            std::string name = (std::string)(*it)["Name"];
+            cv::FileNode featuresNode = (*it)["Features"];
+            for (cv::FileNodeIterator fit = featuresNode.begin(); fit != featuresNode.end(); ++fit) {
+                cv::Mat mat;
+                *fit >> mat;
+                lbphFeaturesMap_[name].push_back(mat);
+            }
+        }
+    }
+
+    // Load SFace Features
+    cv::FileNode sfaceNode = fs["SFace"];
+    if (!sfaceNode.empty()) {
+        sfaceFeaturesMap_.clear();
+        cv::FileNode items = sfaceNode["Items"];
+        for (cv::FileNodeIterator it = items.begin(); it != items.end(); ++it) {
+            std::string name = (std::string)(*it)["Name"];
+            cv::FileNode featuresNode = (*it)["Features"];
+            for (cv::FileNodeIterator fit = featuresNode.begin(); fit != featuresNode.end(); ++fit) {
+                cv::Mat mat;
+                *fit >> mat;
+                sfaceFeaturesMap_[name].push_back(mat);
+            }
+        }
+    }
+
+    fs.release();
+    return true;
+}
+
+
+bool FaceIdentifier::ForgetFaceModels()
+{
+    std::wstring appFolder = GetAppFolderPath();
+    std::wstring wFullPath = appFolder + L"\\" + ToWString(ENROLLED_FACES_XML);
+
+    ::DeleteFileW(wFullPath.c_str());
+
+    lbphFeaturesMap_.clear();
+    sfaceFeaturesMap_.clear();
+
+    eigenfacesRawImages_.clear();
+    eigenfacesLabels_.clear();
+
+    return true;
+}
+
+std::vector<std::string> FaceIdentifier::GetEnrolledNames() const
+{
+    std::set<std::string> uniqueNames;
+
+    for (const auto& pair : lbphFeaturesMap_) {
+        uniqueNames.insert(pair.first);
+    }
+    for (const auto& pair : sfaceFeaturesMap_) {
+        uniqueNames.insert(pair.first);
+    }
+    for (const auto& label : eigenfacesLabels_) {
+        uniqueNames.insert(label);
+    }
+
+    return std::vector<std::string>(uniqueNames.begin(), uniqueNames.end());
 }

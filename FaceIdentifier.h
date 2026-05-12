@@ -58,6 +58,27 @@ public:
      * @param faceData Supplementary geometrical landmarks info.
      */
     void Enroll(FaceIdentificationMethod method, const std::string& name, const cv::Mat& faceImage, const std::vector<float>& faceData = {});
+    /**
+     * @brief Saves the currently enrolled face dictionaries strictly as XML formatted logs.
+     * @return True if write executes correctly
+     */
+    bool SaveModelsToXml() const;
+
+    /**
+     * @brief Loads initialized identities
+     * @return True if read functions correctly
+     */
+    bool LoadModelsFromXml();
+    /**
+     * @brief Retrieves a list of all currently enrolled identity names.
+     * @return A vector of unique identity strings.
+     */
+    std::vector<std::string> GetEnrolledNames() const;
+    /**
+     * @brief Deletes the saved XML file and clears current in-memory face models.
+     * @return True upon successful deletion or if the file was already absent.
+     */
+    bool ForgetFaceModels();
 
     bool IsEigenfacesLoaded() const;
     bool IsLBPHLoaded() const;

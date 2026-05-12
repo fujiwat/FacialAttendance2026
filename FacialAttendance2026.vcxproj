@@ -200,6 +200,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="AdaptiveScreenLight.h" />
+    <ClInclude Include="CMyMsgBox.h" />
     <ClInclude Include="FaceDetector.h" />
     <ClInclude Include="FaceIdentifier.h" />
     <ClInclude Include="FacialAttendance2026.h" />
@@ -217,6 +218,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AdaptiveScreenLight.cpp" />
+    <ClCompile Include="CMyMsgBox.cpp" />
     <ClCompile Include="FaceDetector.cpp" />
     <ClCompile Include="FaceIdentifier.cpp" />
     <ClCompile Include="FacialAttendance2026.cpp" />

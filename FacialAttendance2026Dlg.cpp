@@ -109,6 +109,7 @@ BEGIN_MESSAGE_MAP(CFacialAttendance2026Dlg, CDialogEx)
     ON_COMMAND(ID_EVALUATION_FACEDETECTION32783, &CFacialAttendance2026Dlg::OnEvaluationFacedetection32783)
     ON_COMMAND(ID_EVALUATION_FACEIDENTIFICATION32784, &CFacialAttendance2026Dlg::OnEvaluationFaceidentification32784)
     ON_COMMAND(ID_FILE_SETTINGS, &CFacialAttendance2026Dlg::OnFileSettings)
+    ON_COMMAND(ID_FILE_FORGETFACEMODELS, &CFacialAttendance2026Dlg::OnFileForgetfacemodels)
 END_MESSAGE_MAP()
 
 /**
@@ -201,6 +202,18 @@ BOOL CFacialAttendance2026Dlg::OnInitDialog()
     InitializeScreenLightSettings();
 
     m_identifier.Initialize("");
+    m_identifier.LoadModelsFromXml();
+    SyncLoadedEnrolledNames();
+
+    std::vector<std::string> loadedNames = m_identifier.GetEnrolledNames();
+    for (const auto& nameStd : loadedNames) {
+        m_registeredNames.insert(std::wstring((LPCTSTR)ToWString(nameStd).c_str()));
+
+        // ついでにコンボボックスのドロップダウンリストにも名前を足しておくと便利です
+        if (m_comboName.FindStringExact(-1, ToWString(nameStd).c_str()) == CB_ERR) {
+            m_comboName.AddString(ToWString(nameStd).c_str());
+        }
+    }
 
     {
         std::lock_guard<std::mutex> lock(m_bufferMutex);
@@ -231,6 +244,10 @@ void CFacialAttendance2026Dlg::EnableInputFields(BOOL bEnable)
         IDC_STATIC_TIME,
         IDC_STATIC_TIME2,
         IDC_STATIC_COMMENT,
+        IDC_STATIC_IDENTIFIED,
+        IDC_EDIT_IDENTIFIED,
+        IDC_STATIC_CONFIDENCE,
+        IDC_EDIT_CONFIDENCE,
     };
 
     for (int nID : targetIDs) {
@@ -254,15 +271,18 @@ void CFacialAttendance2026Dlg::InitializeCameraList()
     }
 
     if (m_comboCamera.GetCount() > 0) {
-        m_comboCamera.SetCurSel(0);
-        m_currentCameraIdx = 0;
+        // Restore previously selected camera (saved in app profile). If invalid, fall back to 0.
+        int savedIdx = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, REG_KEY_LAST_CAMERA_INDEX, 0);
+        if (savedIdx < 0 || savedIdx >= m_comboCamera.GetCount()) savedIdx = 0;
+
+        m_comboCamera.SetCurSel(savedIdx);
+        m_currentCameraIdx = savedIdx;
         m_detector.OpenCamera(m_currentCameraIdx);
     }
     else {
         m_currentCameraIdx = -1;
     }
 }
-
 /**
  * @brief Sets up the available facial detection algorithm options for the user interface.
  */
@@ -393,6 +413,10 @@ void CFacialAttendance2026Dlg::InitializeFontsAndUI()
     m_editTimeOrg.SetFont(&m_fontRegular);
     m_editComment.SetFont(&m_fontRegular);
 
+    if (GetDlgItem(IDC_STATIC_NAME))      GetDlgItem(IDC_STATIC_IDENTIFIED)->SetFont(&m_fontRegular);
+    if (GetDlgItem(IDC_STATIC_NAME))      GetDlgItem(IDC_EDIT_IDENTIFIED)->SetFont(&m_fontRegular);
+    if (GetDlgItem(IDC_STATIC_NAME))      GetDlgItem(IDC_STATIC_CONFIDENCE)->SetFont(&m_fontRegular);
+    if (GetDlgItem(IDC_STATIC_NAME))      GetDlgItem(IDC_EDIT_CONFIDENCE)->SetFont(&m_fontRegular);
     if (GetDlgItem(IDC_STATIC_NAME))      GetDlgItem(IDC_STATIC_NAME)->SetFont(&m_fontRegular);
     if (GetDlgItem(IDC_STATIC_ID))        GetDlgItem(IDC_STATIC_ID)->SetFont(&m_fontRegular);
     if (GetDlgItem(IDC_STATIC_TIME))      GetDlgItem(IDC_STATIC_TIME)->SetFont(&m_fontRegular);
@@ -530,7 +554,7 @@ void CFacialAttendance2026Dlg::InitializeMenuSettings()
  * @brief Pushes successful identities into UI controls stamping records directly reflecting operations.
  * @param name The identification text strictly mapped internally.
  */
-void CFacialAttendance2026Dlg::UpdateIdentificationFields(CString name)
+void CFacialAttendance2026Dlg::UpdateIdentificationFields(CString name, double confidence)
 {
     if (name.CompareNoCase(_T("Unknown")) == 0) {
         m_comboName.SetWindowText(name);
@@ -541,12 +565,22 @@ void CFacialAttendance2026Dlg::UpdateIdentificationFields(CString name)
             m_comboName.AddString(name);
         }
     }
+    SetDlgItemText(IDC_EDIT_IDENTIFIED, name);
 
     CTime now = CTime::GetCurrentTime();
     m_editTime.SetTime(&now);
 
     CString strTime = now.Format(_T("%H:%M"));
     m_editTimeOrg.SetWindowText(strTime);
+
+    if (confidence > 0.0) {
+        CString strConfidence;
+        strConfidence.Format(_T("%.f%%"), confidence * 100.0);
+        SetDlgItemText(IDC_EDIT_CONFIDENCE, strConfidence);
+    }
+    else {
+        SetDlgItemText(IDC_EDIT_CONFIDENCE, _T(""));
+    }
 
     m_editTime.Invalidate(FALSE);
     m_editTime.UpdateWindow();
@@ -732,6 +766,9 @@ void CFacialAttendance2026Dlg::OnCbnSelchangeComboCamera()
     if (sel != LB_ERR) {
         m_currentCameraIdx = sel;
 
+        // Persist the user's choice for next startup
+        AfxGetApp()->WriteProfileInt(REG_SECTION_SETTINGS, REG_KEY_LAST_CAMERA_INDEX, m_currentCameraIdx);
+
         m_bStopThread = true;
         if (m_workerThread.joinable()) {
             m_workerThread.join();
@@ -745,7 +782,6 @@ void CFacialAttendance2026Dlg::OnCbnSelchangeComboCamera()
         }
     }
 }
-
 /**
  * @brief Handles dialog close events.
  */
@@ -759,6 +795,18 @@ void CFacialAttendance2026Dlg::OnBnClickedClose()
   */
 void CFacialAttendance2026Dlg::OnCancel()
 {
+    int result = MyMessageBoxW(GetSafeHwnd(),
+        MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON1, // ここで明示的に指定（省略しても同じ）
+        g_wAppNameLong,
+        _T("The application is closing.\n\nDo you want to save the face data (without Eigenfaces) learned during this session?"));
+
+    if (result == IDCANCEL) {
+        return;
+    }
+    else if (result == IDYES) {
+        m_identifier.SaveModelsToXml();
+    }
+
     m_bStopThread = true;
     m_pauseCV.notify_all();
     if (m_workerThread.joinable()) m_workerThread.join();
@@ -1217,81 +1265,230 @@ void CFacialAttendance2026Dlg::OnRadioSlNone()
  */
 void CFacialAttendance2026Dlg::OnBnClickedButtonConfirm()
 {
-    CString strName, strID, strTime, strTimeOrg, strComment;
+    CString strName, strID, strTime, strTimeOrg, strComment, strRecogName;
 
+    // 1. data collection from form controls
     m_comboName.GetWindowText(strName);
     m_editID.GetWindowText(strID);
     m_editTime.GetWindowText(strTime);
     m_editTimeOrg.GetWindowText(strTimeOrg);
     m_editComment.GetWindowText(strComment);
+    GetDlgItemText(IDC_EDIT_IDENTIFIED, strRecogName);
 
-    strName.Trim();
-    strID.Trim();
-    strTime.Trim();
+    // 2. validation, input data checking, and formatting
+    if (!ValidateInputs(strName, strID, strTime)) return;
 
-    if (strName.IsEmpty())
-    {
+    // 3. build and display confirmation message
+    CString msg = BuildConfirmationMessage(strName, strID, strRecogName);
+    if (MyMessageBoxW(GetSafeHwnd(), MB_OKCANCEL | MB_ICONQUESTION, g_wAppNameLong, _T("%s"), (LPCTSTR)msg) != IDOK) {
+        return;
+    }
+
+    // 4. update attendee list
+    UpdateAttendeeList(strTime, strName, strID, strTimeOrg);
+    m_registeredNames.insert(std::wstring((LPCTSTR)strName));
+
+    // 5. enroll face information
+    EnrollFace(strName);
+
+    // 6. save to CSV
+    SaveAttendanceToCsv(strTime, strName, strID, strComment);
+
+    // 7. reset form and restart camera
+    ClearInputForm();
+    OnBnClickedButtonCameraOn();
+}
+
+BOOL CFacialAttendance2026Dlg::ValidateInputs(CString& name, CString& id, CString& time)
+{
+    name.Trim(); id.Trim(); time.Trim();
+
+    if (name.IsEmpty()) {
         AfxMessageBox(_T("Name is required."));
-        m_comboName.SetFocus();
-        return;
+        m_comboName.SetFocus(); return FALSE;
     }
-    ConvertToTitleCase(strName);
-    m_comboName.SetWindowText(strName);
+    ConvertToTitleCase(name);
+    m_comboName.SetWindowText(name);
 
-    BOOL bRequiresID = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, REG_KEY_OPTION_REQUIREDS_ID, DEF_KEY_OPTION_TRUE);
-    if (bRequiresID && strID.IsEmpty())
-    {
+    BOOL bReqID = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, REG_KEY_OPTION_REQUIREDS_ID, DEF_KEY_OPTION_TRUE);
+    if (bReqID && id.IsEmpty()) {
         AfxMessageBox(_T("ID is required."));
-        m_editID.SetFocus();
-        return;
+        m_editID.SetFocus(); return FALSE;
     }
 
-    strTime.Remove(_T('_'));
-    if (strTime.GetLength() != 5 || strTime[2] != _T(':')) {
-        AfxMessageBox(_T("Time must be in exactly HH:mm format."));
-        m_editTime.SetFocus();
-        return;
+    time.Remove(_T('_'));
+    int h = _ttoi(time.Left(2));
+    int m = _ttoi(time.Right(2));
+    if (time.GetLength() != 5 || time[2] != _T(':') || h < 0 || h >= 24 || m < 0 || m >= 60) {
+        AfxMessageBox(_T("Invalid time format (HH:mm)."));
+        m_editTime.SetFocus(); return FALSE;
     }
+    return TRUE;
+}
 
-    int h = _ttoi(strTime.Left(2));
-    int m = _ttoi(strTime.Right(2));
-    if (h < 0 || h >= 24 || m < 0 || m >= 60) {
-        AfxMessageBox(_T("Invalid time. Valid range is 00:00 to 23:59."));
-        m_editTime.SetFocus();
-        return;
+CString CFacialAttendance2026Dlg::BuildConfirmationMessage(const CString& name, const CString& id, const CString& recogName)
+{
+    CString msg;
+    if (recogName.Find(_T("Unknown")) == 0 || recogName.IsEmpty()) {
+        if (IsRegistered(name)) {
+            msg.Format(_T("Hello %s!\nSorry, it seems I forgot your face.\nI will memorize it again.\n\nID=%s,\nReady to save?"), (LPCTSTR)name, (LPCTSTR)id);
+        }
+        else
+        {
+            msg.Format(_T("Hello!\nWe haven't met before.\nI will remember you as %s.\n\nID=%s,\nReady to save?"), (LPCTSTR)name, (LPCTSTR)id);
+        }
     }
+    else if (recogName.Compare(name) != 0) {
+        msg.Format(_T("Hello again!\nSorry, I thought your name was %s,\nnow memorized as %s.\n\nID=%s,\nReady to save?"), (LPCTSTR)recogName, (LPCTSTR)name, (LPCTSTR)id);
+    }
+    else {
+        msg.Format(_T("Hello %s!\nI remember you well.\n\nID=%s,\nReady to save?"), (LPCTSTR)name, (LPCTSTR)id);
+    }
+    return msg;
+}
 
+void CFacialAttendance2026Dlg::UpdateAttendeeList(const CString& time, const CString& name, const CString& id, const CString& timeOrg)
+{
     CListCtrl* pListCtrl = (CListCtrl*)GetDlgItem(IDC_ATTENDEES_LIST);
-    if (pListCtrl != nullptr) {
-        CString timeModifiedMark = (strTime == strTimeOrg) ? _T("") : _T("*");
+    if (pListCtrl == nullptr) return;
 
-        int insertIndex = pListCtrl->GetItemCount();
-        int rowIndex = pListCtrl->InsertItem(insertIndex, timeModifiedMark);
+    CString timeModifiedMark = (time == timeOrg) ? _T("") : _T("*");
 
-        pListCtrl->SetItemText(rowIndex, 1, strTime);
-        pListCtrl->SetItemText(rowIndex, 2, strName);
-        pListCtrl->SetItemText(rowIndex, 3, strID);
+    int insertIndex = pListCtrl->GetItemCount();
+    int rowIndex = pListCtrl->InsertItem(insertIndex, timeModifiedMark);
 
-        pListCtrl->EnsureVisible(rowIndex, FALSE);
-    }
+    pListCtrl->SetItemText(rowIndex, 1, time);
+    pListCtrl->SetItemText(rowIndex, 2, name);
+    pListCtrl->SetItemText(rowIndex, 3, id);
 
-    if (!m_bestItem.rawFrame.empty() && strName.CompareNoCase(_T("Unknown")) != 0) {
-        CT2CA pszConvertedAnsiString(strName);
+    pListCtrl->EnsureVisible(rowIndex, FALSE);
+}
+
+void CFacialAttendance2026Dlg::EnrollFace(const CString& name)
+{
+    if (!m_bestItem.rawFrame.empty() && name.Find(_T("Unknown")) != 0)
+    {
+        CT2CA pszConvertedAnsiString(name);
         std::string stdName(pszConvertedAnsiString);
 
         FaceIdentificationMethod method = static_cast<FaceIdentificationMethod>(m_faceIdentificationMode);
         m_identifier.Enroll(method, stdName, m_bestItem.rawFrame, m_bestItem.faceData);
     }
+}
 
-    SaveAttendanceToCsv(strTime, strName, strID, strComment);
-
+void CFacialAttendance2026Dlg::ClearInputForm()
+{
     m_comboName.SetWindowText(_T(""));
     m_editID.SetWindowText(_T(""));
     m_editComment.SetWindowText(_T(""));
     m_editTimeOrg.SetWindowText(_T(""));
-
-    OnBnClickedButtonCameraOn();
+    SetDlgItemText(IDC_EDIT_IDENTIFIED, _T(""));
+    SetDlgItemText(IDC_EDIT_CONFIDENCE, _T(""));
 }
+
+
+//void CFacialAttendance2026Dlg::OnBnClickedButtonConfirm()
+//{
+//    CString strName, strID, strTime, strTimeOrg, strComment;
+//
+//    m_comboName.GetWindowText(strName);
+//    m_editID.GetWindowText(strID);
+//    m_editTime.GetWindowText(strTime);
+//    m_editTimeOrg.GetWindowText(strTimeOrg);
+//    m_editComment.GetWindowText(strComment);
+//
+//    strName.Trim();
+//    strID.Trim();
+//    strTime.Trim();
+//
+//    if (strName.IsEmpty())
+//    {
+//        AfxMessageBox(_T("Name is required."));
+//        m_comboName.SetFocus();
+//        return;
+//    }
+//    ConvertToTitleCase(strName);
+//    m_comboName.SetWindowText(strName);
+//
+//    BOOL bRequiresID = AfxGetApp()->GetProfileInt(REG_SECTION_SETTINGS, REG_KEY_OPTION_REQUIREDS_ID, DEF_KEY_OPTION_TRUE);
+//    if (bRequiresID && strID.IsEmpty())
+//    {
+//        AfxMessageBox(_T("ID is required."));
+//        m_editID.SetFocus();
+//        return;
+//    }
+//
+//    strTime.Remove(_T('_'));
+//    if (strTime.GetLength() != 5 || strTime[2] != _T(':')) {
+//        AfxMessageBox(_T("Time must be in exactly HH:mm format."));
+//        m_editTime.SetFocus();
+//        return;
+//    }
+//
+//    int h = _ttoi(strTime.Left(2));
+//    int m = _ttoi(strTime.Right(2));
+//    if (h < 0 || h >= 24 || m < 0 || m >= 60) {
+//        AfxMessageBox(_T("Invalid time. Valid range is 00:00 to 23:59."));
+//        m_editTime.SetFocus();
+//        return;
+//    }
+//
+//    // Get the initially identified name
+//    CString strRecogName;
+//    GetDlgItemText(IDC_EDIT_IDENTIFIED, strRecogName);
+//
+//    // Build the confirmation message
+//    CString msg;
+//    // For completely new faces or empty recognition
+//    if (strRecogName.Find(_T("Unknown")) == 0 || strRecogName.IsEmpty()) {
+//        msg.Format(_T("Hello!\nWe haven't met before.\nI will remember you as %s.\n\nID=%s,\nAre you ready to save your attendance?"), (LPCTSTR)strName, (LPCTSTR)strID);
+//    }
+//    else if (strRecogName.Compare(strName) != 0) {
+//        // Name was edited (corrected by user)
+//        msg.Format(_T("Hello again!\nSorry, I thought your name was %s,\nnow memorized as %s.\n\nID=%s,\nAre you ready to save your attendance?"), (LPCTSTR)strRecogName, (LPCTSTR)strName, (LPCTSTR)strID);
+//    }
+//    else {
+//        // Successfully recognized (no edits)
+//        msg.Format(_T("Hello %s!\nI remember you well. Nice to see you again.\n\nID=%s,\nAre you ready to save your attendance?"), (LPCTSTR)strRecogName, (LPCTSTR)strID);
+//    }
+//
+//    // Show message box and abort if user cancels
+//    if (MyMessageBoxW(GetSafeHwnd(), MB_OKCANCEL | MB_ICONQUESTION, g_wAppNameLong, (LPCTSTR)msg) != IDOK) {
+//        return;
+//    }
+//
+//    CListCtrl* pListCtrl = (CListCtrl*)GetDlgItem(IDC_ATTENDEES_LIST);
+//    if (pListCtrl != nullptr) {
+//        CString timeModifiedMark = (strTime == strTimeOrg) ? _T("") : _T("*");
+//
+//        int insertIndex = pListCtrl->GetItemCount();
+//        int rowIndex = pListCtrl->InsertItem(insertIndex, timeModifiedMark);
+//
+//        pListCtrl->SetItemText(rowIndex, 1, strTime);
+//        pListCtrl->SetItemText(rowIndex, 2, strName);
+//        pListCtrl->SetItemText(rowIndex, 3, strID);
+//
+//        pListCtrl->EnsureVisible(rowIndex, FALSE);
+//    }
+//
+//    if (!m_bestItem.rawFrame.empty() && strName.Find(_T("Unknown")) != 0) {
+//        CT2CA pszConvertedAnsiString(strName);
+//        std::string stdName(pszConvertedAnsiString);
+//
+//        FaceIdentificationMethod method = static_cast<FaceIdentificationMethod>(m_faceIdentificationMode);
+//        m_identifier.Enroll(method, stdName, m_bestItem.rawFrame, m_bestItem.faceData);
+//    }
+//
+//    SaveAttendanceToCsv(strTime, strName, strID, strComment);
+//
+//    m_comboName.SetWindowText(_T(""));
+//    m_editID.SetWindowText(_T(""));
+//    m_editComment.SetWindowText(_T(""));
+//    m_editTimeOrg.SetWindowText(_T(""));
+//    SetDlgItemText(IDC_EDIT_IDENTIFIED, _T(""));
+//    SetDlgItemText(IDC_EDIT_CONFIDENCE, _T(""));
+//    OnBnClickedButtonCameraOn();
+//}
 
 /**
  * @brief Saves the processed attendance records into a persistent CSV file.
@@ -1568,7 +1765,7 @@ void CFacialAttendance2026Dlg::OnBnClickedButtonPhotoOk()
     ClearFaceUI();
 
     if (m_faceRingBuffer.empty()) {
-        MyMessageBoxW(GetSafeHwnd(), MB_OK | MB_ICONINFORMATION, g_wAppNameLong, L"Face buffer is empty.");
+        MyMessageBoxW(GetSafeHwnd(), MB_OK | MB_ICONINFORMATION, g_wAppNameLong, _T("Face buffer is empty."));
         return;
     }
 
@@ -1638,9 +1835,9 @@ void CFacialAttendance2026Dlg::ApplyFaceIdentificationResults(const cv::Mat& bes
         FaceIdentificationMethod method = static_cast<FaceIdentificationMethod>(m_faceIdentificationMode);
 
         IdentificationResult result = m_identifier.Identify(method, m_bestItem.rawFrame, m_bestItem.faceData);
-
         CString strName(result.name.c_str());
-        UpdateIdentificationFields(strName);
+        // 変数 result.distance を第2引数として渡す
+        UpdateIdentificationFields(strName, result.distance);
     }
 
     if (!worstFace.empty()) {
@@ -1913,4 +2110,37 @@ void CFacialAttendance2026Dlg::OnFileSettings()
 {
     SettingDlg dlg;
     INT_PTR nResponse = dlg.DoModal();
+}
+
+void CFacialAttendance2026Dlg::OnFileForgetfacemodels()
+{
+    if (MyMessageBoxW(GetSafeHwnd(), MB_YESNO | MB_ICONWARNING, g_wAppNameLong,
+        _T("Are you sure you want to delete all saved face models?\n\nThis action cannot be undone.")) != IDYES)
+    {
+        return;
+    }
+
+    m_identifier.ForgetFaceModels();
+
+    m_registeredNames.clear();
+
+    m_comboName.SetWindowText(_T(""));
+    m_comboName.ResetContent();
+
+    MyMessageBoxW(GetSafeHwnd(), MB_OK | MB_ICONINFORMATION, g_wAppNameLong, _T("Memory cleared successfully."));
+}
+
+void CFacialAttendance2026Dlg::SyncLoadedEnrolledNames()
+{
+    std::vector<std::string> loadedNames = m_identifier.GetEnrolledNames();
+    for (const auto& nameStd : loadedNames) {
+        std::wstring wName = ToWString(nameStd);
+        m_registeredNames.insert(wName);
+
+        // ついでにコンボボックスのドロップダウンリストにも名前を足しておくと便利です
+        CString cstrName(wName.c_str());
+        if (m_comboName.FindStringExact(-1, cstrName) == CB_ERR) {
+            m_comboName.AddString(cstrName);
+        }
+    }
 }

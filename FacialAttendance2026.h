@@ -5,6 +5,8 @@
 #endif
 
 #include "resource.h"       // main symbols
+#include <set>
+#include <string>
 
 /**
  * @brief Application class managing main instance initialization and metadata setups.

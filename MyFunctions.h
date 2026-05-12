@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <string>
 #include <windows.h>
@@ -11,6 +11,12 @@
  * @return The converted wide string.
  */
 std::wstring ToWString(const std::string& str);
+
+/**
+ * @brief Retrieves or creates the application's specific folder path.
+ * @return The application folder path.
+ */
+std::wstring GetAppFolderPath();
 
 /**
  * @brief Converts a wide string to a standard narrow string.
@@ -43,8 +49,9 @@ extern std::string  g_appNameLong;
  * @param title The dialog box title.
  * @param format The formatting wide string.
  * @param ... Additional arguments for formatting.
+ * @return An integer value that indicates which button the user clicked.
  */
-void MyMessageBoxW(HWND parent, UINT type, const std::wstring& title, const wchar_t* format, ...);
+int MyMessageBoxW(HWND parent, UINT type, const std::wstring& title, const wchar_t* format, ...);
 
 /**
  * @brief A message box wrapper that accepts narrow string (UTF-8) formatting.
@@ -53,8 +60,9 @@ void MyMessageBoxW(HWND parent, UINT type, const std::wstring& title, const wcha
  * @param titleA The dialog box title in a narrow string format.
  * @param format The formatting narrow string.
  * @param ... Additional arguments for formatting.
+ * @return An integer value that indicates which button the user clicked.
  */
-void MyMessageBoxA(HWND parent, UINT type, const std::string& titleA, const char* format, ...);
+int MyMessageBoxA(HWND parent, UINT type, const std::string& titleA, const char* format, ...);
 
 /**
  * @brief Displays an error message inside a message box using a UTF-8 string.

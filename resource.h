@@ -1,4 +1,4 @@
-﻿//{{NO_DEPENDENCIES}}
+//{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
 // Used by FacialAttendance2026.rc
 //
@@ -9,6 +9,7 @@
 #define IDR_MAINFRAME                   128
 #define IDR_MENU1                       130
 #define IDD_DIALOG_SETTINGS             131
+#define IDD_DIALOG_MESSAGEBOX           133
 #define IDC_STATIC_PREVIEW              1000
 #define IDC_BUTTON_PHOTO_OK             1001
 #define IDC_COMBO_CAMERA                1002
@@ -29,10 +30,12 @@
 #define IDC_COMBO_FACE_DETECTOR         1017
 #define IDC_COMBO_FACE_IDENTIFIER       1018
 #define IDC_CHECK_REQUIRES_ID           1018
-#define IDC_CHECK_REQUIRES_ID2          1019
 #define IDC_CHECK_MIRROR_VIEW           1019
+#define IDC_EDIT_IDENTIFIED             1019
 #define IDC_STATIC_NAME                 1020
+#define IDC_STATIC_ICON                 1020
 #define IDC_COMBO_NAME                  1021
+#define IDC_EDIT_MSG                    1021
 #define IDC_STATIC_ID                   1022
 #define IDC_EDIT_USER_ID                1023
 #define IDC_STATIC_TIME                 1024
@@ -45,6 +48,10 @@
 #define IDC_STATIC_NAME2                1031
 #define IDC_STATIC_TIME2                1031
 #define IDC_STATIC_ATTENDEES            1032
+#define IDC_STATIC_IDENTIFIED           1033
+#define IDC_STATIC_CONFIDENCE           1034
+#define IDC_EDIT_IDENTIFIED2            1035
+#define IDC_EDIT_CONFIDENCE             1035
 #define ID_FILE_SHOWATTENDANCELIST      32771
 #define ID_FILE_EXIT                    32772
 #define ID_EVALUATION_FACEDETECTION     32773
@@ -60,14 +67,15 @@
 #define ID_EVALUATION_FACEDETECTION32783 32783
 #define ID_EVALUATION_FACEIDENTIFICATION32784 32784
 #define ID_FILE_SETTINGS                32785
+#define ID_FILE_FORGETFACEMODELS        32786
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        133
-#define _APS_NEXT_COMMAND_VALUE         32786
-#define _APS_NEXT_CONTROL_VALUE         1019
+#define _APS_NEXT_RESOURCE_VALUE        135
+#define _APS_NEXT_COMMAND_VALUE         32787
+#define _APS_NEXT_CONTROL_VALUE         1022
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

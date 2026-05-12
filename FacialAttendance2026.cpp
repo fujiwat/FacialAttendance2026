@@ -38,8 +38,8 @@ void CFacialAttendance2026App::InitializeApplicationName()
     WideCharToMultiByte(CP_UTF8, 0, &fileName[0], (int)fileName.size(), &result[0], size, NULL, NULL);
     g_appNameShort = result;
 
-    g_wAppNameLong = g_wAppNameShort + L" - YuNet/HaarCascade Face Detection";
-    g_appNameLong = g_appNameShort + " - YuNet/HaarCascade Face Detection";
+    g_wAppNameLong = g_wAppNameShort + L" - Friendly Facial Attendance";
+    g_appNameLong = g_appNameShort + " - Friendly Facial Attendance";
 }
 
 /**

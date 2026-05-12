@@ -1,10 +1,11 @@
 #pragma once
+#include <set>
+#include <string>
 #include "FaceDetector.h"
 #include "FaceIdentifier.h" 
 #include "AdaptiveScreenLight.h"
 #include <atomic>
 #include <mutex>
-#include <thread>
 #include <afxcontrolbars.h> 
 #include <deque>   
 #include <condition_variable>                
@@ -297,7 +298,7 @@ private:
      * @brief Updates internal UI components forcing combo-boxes aligning to identity.
      * @param name Text descriptor containing resolved identification formats safely.
      */
-    void UpdateIdentificationFields(CString name);
+    void UpdateIdentificationFields(CString name, double confidence = 0.0);
 
     /**
      * @brief Wraps generated recording logs isolating data towards filesystem outputs.
@@ -307,6 +308,11 @@ private:
      * @param strComment Descriptive notes wrapped seamlessly.
      */
     void SaveAttendanceToCsv(const CString& strTime, const CString& strName, const CString& strID, const CString& strComment);
+
+    /**
+     * @brief Synchronizes loaded backend identity files appending names matching explicitly onto generic UI tracking variables.
+     */
+    void SyncLoadedEnrolledNames();
 
     /**
      * @brief Translates selected definitions enforcing standard lighting logic visually natively.
@@ -385,6 +391,10 @@ private:
 
     std::atomic<uint64_t> m_totalFrames{ 0 };
     std::atomic<double>   m_totalLatencyMs{ 0.0 };
+    std::set<std::wstring> m_registeredNames;
+    bool IsRegistered(const CString& name) {
+        return m_registeredNames.find((LPCTSTR)name) != m_registeredNames.end();
+    }
 
     /**
      * @brief Saves accumulated timing stats accurately writing records sequentially formatting logs.
@@ -585,4 +595,13 @@ private:
      * @param bestFaceData Coordinates and metrics of the most prominent detected face.
      */
     void ProcessAndBufferDetectedFace(const cv::Mat& displayFrame, const cv::Mat& resizedFrame, const std::vector<float>& bestFaceData);
+
+    // inside OnBnClickedButtonConfirm(), for the Confirm button click handler:
+    BOOL ValidateInputs(CString& name, CString& id, CString& time);
+    CString BuildConfirmationMessage(const CString& name, const CString& id, const CString& recogName);
+    void UpdateAttendeeList(const CString& time, const CString& name, const CString& id, const CString& timeOrg);
+    void EnrollFace(const CString& name);
+    void ClearInputForm();
+public:
+    afx_msg void OnFileForgetfacemodels();
 };
