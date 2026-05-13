@@ -1331,7 +1331,7 @@ CString CFacialAttendance2026Dlg::BuildConfirmationMessage(const CString& name, 
     CString msg;
     if (recogName.Find(_T("Unknown")) == 0 || recogName.IsEmpty()) {
         if (IsRegistered(name)) {
-            msg.Format(_T("Hello %s!\nSorry, it seems I forgot your face.\nI will memorize it again.\n\nID=%s,\nReady to save?"), (LPCTSTR)name, (LPCTSTR)id);
+            msg.Format(_T("Hello %s!\nSorry, it seems I forgot your face.\nI will memorize your face again.\n\nID=%s,\nReady to save?"), (LPCTSTR)name, (LPCTSTR)id);
         }
         else
         {
